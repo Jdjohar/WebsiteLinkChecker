@@ -1,0 +1,75 @@
+/* Classic Design System */
+:root {
+    --primary: #003087; /* Navy Blue */
+    --secondary: #f5f5f5; /* Light Gray */
+    --accent: #d4a017; /* Gold Accent */
+    --text: #333333; /* Dark Gray */
+    --white: #ffffff;
+  }
+  
+  body {
+    font-family: 'Roboto', sans-serif;
+    color: var(--text);
+    background-color: var(--secondary);
+    margin: 0;
+    padding: 0;
+  }
+  
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+  }
+  
+  h1, h2, h3 {
+    color: var(--primary);
+    font-weight: 700;
+  }
+  
+  button, a {
+    transition: background-color 0.3s, color 0.3s;
+  }
+  
+  button {
+    border-radius: 4px;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  
+  .bg-primary { background-color: var(--primary); }
+  .text-primary { color: var(--primary); }
+  .bg-secondary { background-color: var(--secondary); }
+  .text-white { color: var(--white); }
+  .border { border: 1px solid #e0e0e0; }
+  .rounded { border-radius: 4px; }
+  .shadow { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+  
+  .card {
+    background: var(--white);
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+  }
+  
+  nav {
+    background: var(--primary);
+    padding: 1rem;
+  }
+  
+  nav a, nav button {
+    color: var(--white);
+    font-size: 1.1rem;
+    margin-left: 1rem;
+  }
+  
+  nav a:hover, nav button:hover {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+  
+  /* Tailwind Overrides */
+  @tailwind base;
+  @tailwind components;
+  @tailwind utilities;
