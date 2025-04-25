@@ -26,7 +26,7 @@ export default function Plans() {
       return;
     }
     try {
-      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/stripe/checkout`, { plan }, {
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/stripe/checkout`, { plan }, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const stripe = await stripePromise;
