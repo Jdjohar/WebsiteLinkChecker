@@ -29,7 +29,7 @@ router.post('/checkout', authMiddleware, async (req, res) => {
         metadata: { userId: user._id.toString() },
       });
       user.stripeCustomerId = customer.id;
-      await UserM.save();
+      await user.save();
     } else {
       customer = await stripe.customers.retrieve(user.stripeCustomerId);
       if (!customer || customer.deleted) {
@@ -38,7 +38,7 @@ router.post('/checkout', authMiddleware, async (req, res) => {
           metadata: { userId: user._id.toString() },
         });
         user.stripeCustomerId = customer.id;
-        await UserM.save();
+        await user.save();
       }
     }
 
@@ -142,7 +142,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
       if (user) {
         user.plan = plan;
-        await UserM.save();
+        await user.save();
         console.log(`Updated user ${user._id} plan to ${plan}`);
       } else {
         console.warn('User not found for subscription:', subscription.id);
