@@ -2,9 +2,11 @@ const express = require('express');
 const Stripe = require('stripe');
 const authMiddleware = require('../middleware/auth');
 const UserM = require('../models/User');
+const router = express.Router();
+const bodyParser = require('body-parser'); // Needed to support both raw and jso
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const router = express.Router();
+
 
 // Create Checkout Session
 router.post('/checkout', authMiddleware, async (req, res) => {
@@ -83,8 +85,10 @@ router.get('/status', authMiddleware, async (req, res) => {
 });
 
 // Stripe Webhook
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
- 
+router.post(
+  '/webhook',
+  bodyParser.raw({ type: 'application/json' }), // this guarantees raw body
+  async (req, res) => { 
  console.log("Start Web Hook")
   const sig = req.headers['stripe-signature'];
   try {

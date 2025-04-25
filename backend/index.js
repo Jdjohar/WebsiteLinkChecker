@@ -45,7 +45,6 @@ app.use(helmet({
     },
   },
 }));
-app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
 app.use(express.json());
 
