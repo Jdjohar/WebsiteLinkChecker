@@ -148,12 +148,11 @@ export default function Dashboard() {
               <p>Domains: {domains.length} / {planLimits[plan]}</p>
               {/* Progress bar */}
               <div className="progress" style={{ height: '10px' }}>
-                <div
-                  className={`progress-bar ${getPlanColor(plan)}`}
+                <div className={`progress-bar ${getPlanColor(plan)}`}
                   role="progressbar"
                   style={{ width: `${(domains.length / (typeof planLimits[plan] === 'number' ? planLimits[plan] : 1)) * 100}%` }}
                   aria-valuenow={domains.length}
-                  aria-valuemin="0"
+                  aria-valuemin={0} 
                   aria-valuemax={planLimits[plan] === 'Unlimited' ? 100 : planLimits[plan]}
                 ></div>
               </div>

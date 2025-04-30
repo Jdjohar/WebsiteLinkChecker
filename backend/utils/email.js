@@ -19,7 +19,7 @@ async function sendEmail(report, websiteUrl, userId) {
     },
   });
 
-  const mailOptions = {
+  const mailOptions = { 
     from: process.env.EMAIL_FROM,
     to: user.email,
     subject: `Broken Links Report for ${websiteUrl}`,
