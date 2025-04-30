@@ -2,6 +2,10 @@ const nodemailer = require('nodemailer');
 const User = require('../models/User');
 
 async function sendEmail(report, websiteUrl, userId) {
+  console.log("userId: ",userId);
+  console.log("report: ",report);
+  console.log("websiteUrl: ",websiteUrl);
+  
   const user = await User.findById(userId);
   if (!user) {
     throw new Error('User not found');

@@ -29,7 +29,7 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
   };
 
   return (
-    <div className="card overflow-x-auto">
+    <div className="card shadow-lg overflow-x-auto">
       {reports.length === 0 ? (
         <p>No reports available.</p>
       ) : (
@@ -54,7 +54,7 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
                   <td className="border p-2">
                     <button
                       onClick={() => setExpandedReport(expandedReport === report._id ? null : report._id)}
-                      className="text-primary hover:underline"
+                      className="mt-4 w-full bg-primary text-white p-2 rounded"
                     >
                       {expandedReport === report._id ? 'Hide' : 'Show'} Details
                     </button>

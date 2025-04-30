@@ -48,33 +48,38 @@ export default function DomainForm({ onAdd, domainCount, plan }: DomainFormProps
   };
 
   return (
-    <div className="card">
+    <div className="card mb-4 shadow-lg p-4">
       <h2 className="text-xl font-bold mb-4">Add Domain</h2>
       <form onSubmit={handleSubmit}>
-        <div>
+      <div className="row">
+      <div className='col'>
           <label className="block mb-1">Website URL</label>
           <input
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            className={`w-full p-2 border rounded ${!isValidUrl && url ? 'border-red-500' : ''}`}
+            className={`w-full p-2 form-control border rounded ${!isValidUrl && url ? 'border-red-500' : ''}`}
             placeholder="https://example.com"
             required
           />
           {!isValidUrl && url && <p className="text-red-500 text-sm mt-1">Invalid URL format</p>}
         </div>
-        <div className="mt-4">
+        <div className="col">
           <label className="block mb-1">Report Schedule</label>
           <select
             value={schedule}
             onChange={(e) => setSchedule(e.target.value)}
-            className="w-full p-2 border rounded"
+            className="w-full p-2 border form-control rounded"
           >
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
             {plan === 'advanced' && <option value="monthly">Monthly</option>}
           </select>
         </div>
+
+      </div>
+       
+        
         <button
           type="submit"
           className="mt-4 w-full bg-primary text-white p-2 rounded hover:bg-blue-800"

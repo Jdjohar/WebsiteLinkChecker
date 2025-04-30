@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -5,6 +7,7 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import Navbar from '../components/Navbar';
+import 'react-toastify/dist/ReactToastify.css';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
@@ -16,7 +19,7 @@ export default function Signup() {
     try {
       const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/signup`, { email, password });
       console.log(res);
-      
+
       localStorage.setItem('token', res.data.token);
       toast.success('Signed up successfully');
       router.push('/dashboard');
@@ -27,49 +30,66 @@ export default function Signup() {
   };
 
   return (
-    <div>
+    <>
       <Head>
         <title>Sign Up - Website Link Checker</title>
         <meta name="description" content="Create a new Website Link Checker account." />
       </Head>
+
       <Navbar />
-      <main className="container mx-auto p-4 max-w-md">
-        <h1 className="text-2xl font-bold mb-4">Sign Up</h1>
-        <div className="bg-white p-6 rounded shadow">
-          <div>
-            <label className="block mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-2 border rounded"
-              required
-            />
+
+      <main className="min-vh-100 d-flex align-items-center justify-content-center bg-light py-5">
+        <div className="container">
+          <div className="row justify-content-center">
+            <div className="col-md-6 col-lg-4">
+              <div className="card shadow-lg">
+                <div className="card-body">
+                  <h2 className="text-center text-3xl font-weight-bold text-primary mb-4">Create Your Account</h2>
+                  <form onSubmit={handleSubmit}>
+                    <div className="mb-3">
+                      <label htmlFor="email" className="form-label">
+                        Email address
+                      </label>
+                      <input
+                        id="email"
+                        type="email"
+                        className="form-control"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label htmlFor="password" className="form-label">
+                        Password
+                      </label>
+                      <input
+                        id="password"
+                        type="password"
+                        className="form-control"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                    </div>
+                    <div className="d-grid">
+                      <button type="submit" className="btn btn-primary btn-block">
+                        Sign Up
+                      </button>
+                    </div>
+                  </form>
+                  <p className="mt-3 text-center">
+                    Already have an account?{' '}
+                    <Link href="/login" className="text-primary text-decoration-none">
+                      Login
+                    </Link>
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="mt-4">
-            <label className="block mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-2 border rounded"
-              required
-            />
-          </div>
-          <button
-            onClick={handleSubmit}
-            className="mt-4 w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
-          >
-            Sign Up
-          </button>
-          <p className="mt-4 text-center">
-            Already have an account?{' '}
-            <Link href="/login" className="text-blue-600">
-              Login
-            </Link>
-          </p>
         </div>
       </main>
-    </div>
+    </>
   );
 }

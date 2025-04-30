@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
@@ -17,34 +19,51 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="bg-blue-600 text-white p-4">
-      <div className="container mx-auto flex justify-between items-center">
-        <Link href="/" className="text-xl font-bold hover:underline">
-          Website Link Checker
+    <nav className="navbar navbar-expand-lg navbar-dark bg-primary sticky-top">
+      <div className="container">
+        <Link className="navbar-brand d-flex align-items-center" href="/">
+          <h2>WLC</h2>
+       
         </Link>
-        <div className="space-x-4">
-          {isLoggedIn ? (
-            <>
-              <Link href="/dashboard" className="hover:underline">
-                Dashboard
-              </Link>
-              <Link href="/plans" className="hover:underline">
-                Plans
-              </Link>
-              <button onClick={handleLogout} className="hover:underline">
-                Logout
-              </button>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="hover:underline">
-                Login
-              </Link>
-              <Link href="/signup" className="hover:underline">
-                Sign Up
-              </Link>
-            </>
-          )}
+        <button
+          className="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+          aria-controls="navbarNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span className="navbar-toggler-icon"></span>
+        </button>
+
+        <div className="collapse navbar-collapse" id="navbarNav">
+          <ul className="navbar-nav ms-auto">
+            {isLoggedIn ? (
+              <>
+                <li className="nav-item">
+                  <Link className="nav-link" href="/dashboard">Dashboard</Link>
+                </li>
+                <li className="nav-item">
+                  <Link className="nav-link" href="/plans">Plans</Link>
+                </li>
+                <li className="nav-item">
+                  <button className="btn btn-link nav-link" onClick={handleLogout}>
+                    Logout
+                  </button>
+                </li>
+              </>
+            ) : (
+              <>
+                <li className="nav-item">
+                  <Link className="nav-link" href="/login">Login</Link>
+                </li>
+                <li className="nav-item">
+                  <Link className="nav-link" href="/signup">Sign Up</Link>
+                </li>
+              </>
+            )}
+          </ul>
         </div>
       </div>
     </nav>

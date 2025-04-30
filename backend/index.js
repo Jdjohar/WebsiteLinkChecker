@@ -18,6 +18,16 @@ const app = express();
 // Normalize FRONTEND_URL to remove trailing slash
 const frontendUrl = process.env.FRONTEND_URL.replace(/\/$/, '');
 
+// Log webhook URL
+const webhookUrl = `${process.env.BACKEND_URL}/api/stripe/webhook`;
+console.log(`Webhook URL: ${webhookUrl}`);
+
+// Debug middleware to log body type for all requests
+app.use((req, res, next) => {
+  console.log(`Middleware - Request to ${req.path}, body type:`, typeof req.body, req.body instanceof Buffer);
+  next();
+});
+
 // CORS Configuration
 app.use(cors({
   origin: frontendUrl,
@@ -25,6 +35,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
+console.log('Middleware - Applied CORS');
 
 // Handle preflight OPTIONS requests
 app.options('*', cors({
@@ -33,6 +44,7 @@ app.options('*', cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
+console.log('Middleware - Applied CORS OPTIONS');
 
 // Security Middleware
 app.use(helmet({
@@ -45,10 +57,15 @@ app.use(helmet({
     },
   },
 }));
+console.log('Middleware - Applied Helmet');
 
+// Webhook route (must come before express.json to avoid parsing raw body)
+app.use('/api/stripe/webhook', stripeRoutes);
+console.log('Middleware - Mounted /api/stripe/webhook');
+
+// JSON parsing for other routes
 app.use(express.json());
-
-
+console.log('Middleware - Applied express.json');
 
 // Rate Limiting
 const limiter = rateLimit({
@@ -57,6 +74,7 @@ const limiter = rateLimit({
 });
 app.use('/api/auth', limiter);
 app.use('/api/reports/scan', limiter);
+console.log('Middleware - Applied rate limiting');
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -71,6 +89,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/domains', domainRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/stripe', stripeRoutes);
+console.log('Middleware - Mounted API routes');
 
 // Health Check
 app.get('/health', (req, res) => {
@@ -79,7 +98,7 @@ app.get('/health', (req, res) => {
 
 // Error Handling
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Error middleware:', err.stack);
   res.status(500).json({ message: 'Internal server error' });
 });
 

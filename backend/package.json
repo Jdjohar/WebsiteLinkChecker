@@ -20,6 +20,8 @@
         "jsonwebtoken": "^9.0.2",
         "mongoose": "^7.6.3",
         "nodemailer": "^6.10.1",
+        "p-limit": "^6.2.0",
+        "robots-parser": "^3.0.1",
         "stripe": "^14.5.0"
     },
     "devDependencies": {
