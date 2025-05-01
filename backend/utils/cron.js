@@ -7,7 +7,7 @@ const User = require('../models/User');
 function startCronJobs() {
   // Daily scans
  // Daily scans at 11:15 AM IST
-new CronJob('00 15 * * *', async () => {
+new CronJob('08 15 * * *', async () => {
   try {
       // Fetch all users
       const users = await User.find({});  // Get all users
