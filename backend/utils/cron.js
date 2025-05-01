@@ -6,7 +6,7 @@ const CronJob = require('cron').CronJob;
 function startCronJobs() {
   // Daily scans
  // Daily scans at 11:15 AM IST
-new CronJob('15 5 * * *', async () => {
+new CronJob('25 5 * * *', async () => {
   try {
     const domains = await Domain.find({ schedule: 'daily' });
     for (const domain of domains) {
