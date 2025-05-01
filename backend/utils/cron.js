@@ -2,6 +2,7 @@ const axios = require('axios');
 const { analyzeWebsite } = require('./broken-link-checker');
 const Domain = require('../models/Domain');
 const CronJob = require('cron').CronJob;
+const User = require('../models/User');
 
 function startCronJobs() {
   // Daily scans
