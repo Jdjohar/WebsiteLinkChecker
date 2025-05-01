@@ -17,6 +17,7 @@ const app = express();
 
 // Normalize FRONTEND_URL to remove trailing slash
 const frontendUrl = process.env.FRONTEND_URL.replace(/\/$/, '');
+console.log("1");
 
 // Log webhook URL
 const webhookUrl = `${process.env.BACKEND_URL}/api/stripe/webhook`;
@@ -27,7 +28,7 @@ app.use((req, res, next) => {
   console.log(`Middleware - Request to ${req.path}, body type:`, typeof req.body, req.body instanceof Buffer);
   next();
 });
-
+console.log("2");
 // CORS Configuration
 app.use(cors({
   origin: frontendUrl,
@@ -102,8 +103,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Internal server error' });
 });
 
+console.log('Console log print');
+
+
 // Start Cron Jobs
 startCronJobs();
+
+console.log('Console log print 2');
 
 // Start Server
 const port = process.env.PORT || 3001;
