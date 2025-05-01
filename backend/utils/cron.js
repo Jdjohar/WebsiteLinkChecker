@@ -5,17 +5,19 @@ const CronJob = require('cron').CronJob;
 
 function startCronJobs() {
   // Daily scans
-  new CronJob('0 0 * * *', async () => {
-    try {
-      const domains = await Domain.find({ schedule: 'daily' });
-      for (const domain of domains) {
-        await analyzeWebsite(domain.url, domain.userId, domain._id);
-      }
-      console.log('Daily scans completed');
-    } catch (error) {
-      console.error('Daily scan error:', error.message);
+ // Daily scans at 11:15 AM IST
+new CronJob('15 5 * * *', async () => {
+  try {
+    const domains = await Domain.find({ schedule: 'daily' });
+    for (const domain of domains) {
+      await analyzeWebsite(domain.url, domain.userId, domain._id);
     }
-  }, null, true, 'UTC');
+    console.log('Daily scans completed');
+  } catch (error) {
+    console.error('Daily scan error:', error.message);
+  }
+}, null, true, 'Asia/Kolkata');
+
 
   // Weekly scans
   new CronJob('0 0 * * 0', async () => {
