@@ -108,7 +108,7 @@ function startCronJobs() {
   console.log("🟢 Starting cron jobs...");
 
   // Daily scans at 2:05 PM IST (14:05 UTC +5:30 = 8:35 UTC, but since you're using 'Asia/Kolkata', just use 14:05)
-  new CronJob('27 14 * * *', async () => {
+  new CronJob('50 14 * * *', async () => {
     console.log('🚀 Starting daily scan job at 2:05 PM IST...');
     try {
       const users = await User.find({});
