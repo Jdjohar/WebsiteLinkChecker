@@ -26,6 +26,7 @@ interface Report {
 export default function Dashboard() {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
+  const [scanning, setScanning] = useState<{ [key: string]: boolean }>({});
   const [plan, setPlan] = useState('free');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -99,14 +100,22 @@ export default function Dashboard() {
 
   const handleManualScan = async (domainId: string) => {
     const token = localStorage.getItem('token');
+    setScanning((prev) => ({ ...prev, [domainId]: true }));
+
     try {
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/reports/scan/${domainId}`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/reports/scan/${domainId}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       toast.success('Scan started');
       fetchData();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to start scan');
+    } finally {
+      setScanning((prev) => ({ ...prev, [domainId]: false }));
     }
   };
 
@@ -137,8 +146,8 @@ export default function Dashboard() {
           <div className="card-body d-flex align-items-center justify-content-between">
             <div className="d-flex align-items-center">
               {/* Plan Icon and Name */}
-              {plan === 'free' }
-              {plan === 'basic' }
+              {plan === 'free'}
+              {plan === 'basic'}
               {plan === 'advanced'}
               <h5 className={`card-title text-${plan === 'free' ? 'danger' : plan === 'basic' ? 'info' : 'success'}`}>
                 {plan.charAt(0).toUpperCase() + plan.slice(1)} Plan
@@ -152,7 +161,7 @@ export default function Dashboard() {
                   role="progressbar"
                   style={{ width: `${(domains.length / (typeof planLimits[plan] === 'number' ? planLimits[plan] : 1)) * 100}%` }}
                   aria-valuenow={domains.length}
-                  aria-valuemin={0} 
+                  aria-valuemin={0}
                   aria-valuemax={planLimits[plan] === 'Unlimited' ? 100 : planLimits[plan]}
                 ></div>
               </div>
@@ -163,52 +172,66 @@ export default function Dashboard() {
         <DomainForm onAdd={fetchData} domainCount={domains.length} plan={plan} />
 
 
-   
 
 
-        
+
+
         <div className="card mb-4 shadow-lg">
-  <div className='p-4'>
-  <h2 className="text-xl font-bold ">Your Domains</h2>
-  </div>
+          <div className='p-4'>
+            <h2 className="text-xl font-bold ">Your Domains</h2>
+          </div>
 
-  {/* Loading, Empty, or Domains */}
-  {loading ? (
-    <p className="text-gray-600">Loading domains...</p>
-  ) : domains.length === 0 ? (
-    <p className="text-gray-600">No domains added yet.</p>
-  ) : (
-    <div className="card-body">
-      <div className="d-flex flex-column space-y-4">
-        {domains.map((domain) => (
-          <div
-            key={domain._id}
-            className="d-flex justify-content-between items-center p-4 bg-white shadow-md rounded-lg hover:shadow-xl transition-shadow duration-300"
-          >
-            <div className="flex flex-col">
-              <span className="text-lg fw-bold">{domain.url}</span> - 
-              <span className="badge rounded-pill text-bg-success" > {domain.schedule}</span>
-            </div>
-            <div className="flex space-x-4">
-              <button
+          {/* Loading, Empty, or Domains */}
+          {loading ? (
+            <p className="text-gray-600">Loading domains...</p>
+          ) : domains.length === 0 ? (
+            <p className="text-gray-600">No domains added yet.</p>
+          ) : (
+            <div className="card-body">
+              <div className="d-flex flex-column space-y-4">
+                {domains.map((domain) => (
+                  <div
+                    key={domain._id}
+                    className="d-flex justify-content-between items-center p-4 bg-white shadow-md rounded-lg hover:shadow-xl transition-shadow duration-300"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-lg fw-bold">{domain.url}</span> -
+                      <span className="badge rounded-pill text-bg-success" > {domain.schedule}</span>
+                    </div>
+                    <div className="flex space-x-4">
+                      <button
+                        onClick={() => handleManualScan(domain._id)}
+                        className="mt-4 w-full bg-primary text-white p-2 rounded me-3"
+                        disabled={scanning[domain._id]}
+                      >
+                        {scanning[domain._id] ? (
+                          <span>
+                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Scanning...
+                          </span>
+                        ) : (
+                          'Scan Now'
+                        )}
+                      </button>
+                      {/* <button
                 onClick={() => handleManualScan(domain._id)}
                 className="mt-4 w-full bg-primary text-white p-2 rounded me-3"
               >
                 Scan Now
-              </button>
-              <button
-                onClick={() => handleDeleteDomain(domain._id)}
-                className="mt-4 w-full bg-danger text-white p-2 rounded"
-              >
-                Delete
-              </button>
+              </button> */}
+                      <button
+                        onClick={() => handleDeleteDomain(domain._id)}
+                        className="mt-4 w-full bg-danger text-white p-2 rounded"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )}
-</div>
+          )}
+        </div>
 
 
         <h2 className="text-xl font-bold mt-8 mb-4">Recent Reports</h2>
