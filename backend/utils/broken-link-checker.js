@@ -101,26 +101,99 @@ async function fetchSitemap(sitemapUrl) {
 }
 
 // Fetch homepage links
-async function fetchHomepageLinks(baseUrl) {
-  try {
-    const response = await axios.get(baseUrl, { timeout: 5000 });
-    const $ = cheerio.load(response.data);
-    const links = [];
-    $('a').each((_, element) => {
-      const href = $(element).attr('href');
-      if (href) {
-        const resolvedUrl = resolveUrl(baseUrl, href);
-        if (resolvedUrl && isSameDomain(baseUrl, resolvedUrl)) {
-          links.push(resolvedUrl);
+// async function fetchHomepageLinks(baseUrl) {
+//   try {
+//     const response = await axios.get(baseUrl, { timeout: 5000 });
+//     const $ = cheerio.load(response.data);
+//     const links = [];
+//     $('a').each((_, element) => {
+//       const href = $(element).attr('href');
+//       if (href) {
+//         const resolvedUrl = resolveUrl(baseUrl, href);
+//         if (resolvedUrl && isSameDomain(baseUrl, resolvedUrl)) {
+//           links.push(resolvedUrl);
+//         }
+//       }
+//     });
+//     return [...new Set(links)].slice(0, MAX_URLS_PER_SITE);
+//   } catch (error) {
+//     console.error(`Error fetching homepage ${baseUrl}: ${error.message}`);
+//     return [];
+//   }
+// }
+
+async function fetchHomepageLinks(baseUrl, maxDepth = 1) {
+  const visitedUrls = new Set();
+  const checkedUrls = new Set();
+  const brokenLinksMap = new Map();
+  const base = new URL(baseUrl).origin;
+  const robots = await fetchRobotsTxt(base);
+  const toVisit = [{ url: normalizeUrl(baseUrl), depth: 0 }];
+  const foundLinks = new Set();
+
+  while (toVisit.length > 0) {
+    const { url, depth } = toVisit.shift();
+    if (!url || visitedUrls.has(url) || depth > maxDepth) continue;
+    visitedUrls.add(url);
+
+    if (!robots.isAllowed(url, '*')) {
+      console.log('Blocked by robots.txt:', url);
+      continue;
+    }
+
+    try {
+      const response = await axios.get(url, { timeout: 5000 });
+      const $ = cheerio.load(response.data);
+      const resourceLinks = [];
+
+      $('a[href]').each((_, el) => {
+        const href = $(el).attr('href');
+        if (href) {
+          const absolute = normalizeUrl(new URL(href, url).href);
+          if (absolute && absolute.startsWith(base)) {
+            foundLinks.add(absolute);
+            if (!visitedUrls.has(absolute) && absolute.endsWith('/')) {
+              toVisit.push({ url: absolute, depth: depth + 1 });
+            }
+          }
         }
-      }
-    });
-    return [...new Set(links)].slice(0, MAX_URLS_PER_SITE);
-  } catch (error) {
-    console.error(`Error fetching homepage ${baseUrl}: ${error.message}`);
-    return [];
+      });
+
+      $('link[rel="stylesheet"], script[src], img[src], source[src], video[src], audio[src], iframe[src]').each((_, el) => {
+        const src = $(el).attr('href') || $(el).attr('src');
+        if (src) resourceLinks.push(src);
+      });
+
+      const checkPromises = resourceLinks.map(link => limit(async () => {
+        const absolute = normalizeUrl(new URL(link, url).href);
+        if (!absolute || checkedUrls.has(absolute)) return;
+        if (!absolute.startsWith(base)) return;
+
+        checkedUrls.add(absolute);
+
+        try {
+          const res = await axios.get(absolute, { validateStatus: null });
+          if (res.status >= 400) {
+            brokenLinksMap.set(absolute, { url: absolute, status: res.status, source: url });
+          }
+        } catch {
+          brokenLinksMap.set(absolute, { url: absolute, status: 'Failed', source: url });
+        }
+      }));
+
+      await Promise.allSettled(checkPromises);
+
+    } catch (error) {
+      console.error(`Error fetching ${url}: ${error.message}`);
+    }
   }
+
+  return {
+    links: Array.from(foundLinks).slice(0, MAX_URLS_PER_SITE),
+    brokenLinks: Array.from(brokenLinksMap.values())
+  };
 }
+
 
 // Extract internal links
 async function extractInternalLinks(pageUrl, websiteUrl, checkedUrls) {
@@ -191,6 +264,9 @@ async function checkAllLinks(urlsToCheck, websiteUrl, brokenLinks, checkedUrls) 
     );
   }
 }
+
+
+
 
 // Analyze single website
 async function analyzeWebsite(websiteUrl, userId, domainId) {
