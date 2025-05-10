@@ -4,7 +4,7 @@ const robotsParser = require('robots-parser');
 const pLimit = require('p-limit').default;
 const { URL } = require('url');
 
-const limit = pLimit(10);
+const limit = pLimit(5);
 const visitedUrls = new Set();
 
 const axiosInstance = axios.create({
@@ -20,7 +20,8 @@ function normalizeUrl(url) {
     const normalized = new URL(url);
     normalized.hash = '';
     return normalized.href;
-  } catch {
+  } catch (error) {
+    console.error(`❌ normalizeUrl failed for ${url}: ${error.message}`);
     return null;
   }
 }
@@ -29,17 +30,17 @@ async function fetchRobotsTxt(baseUrl) {
   try {
     const robotsUrl = new URL('/robots.txt', baseUrl).href;
     const res = await axiosInstance.get(robotsUrl);
+    console.log(`🤖 Fetched robots.txt for ${baseUrl}`);
     return robotsParser(robotsUrl, res.data);
-  } catch {
+  } catch (error) {
+    console.warn(`⚠️ Failed to fetch robots.txt for ${baseUrl}: ${error.message}`);
     return robotsParser('', 'User-agent: *\nDisallow:');
   }
 }
 
-async function scanLinks(startUrl, maxDepth = 3) {
-
+async function scanLinks(startUrl, schedule) {
   startUrl = startUrl.replace(/^http:/, 'https:');
-  console.log(startUrl,"startUrl");
-  
+  console.log(`🔍 Starting scan for ${startUrl}, schedule: ${schedule}`);
 
   const toVisit = [{ url: normalizeUrl(startUrl), depth: 0 }];
   const brokenLinksMap = new Map();
@@ -48,17 +49,24 @@ async function scanLinks(startUrl, maxDepth = 3) {
   const base = new URL(startUrl).origin;
   const robots = await fetchRobotsTxt(base);
 
+  if (!robots.isAllowed(startUrl, '*')) {
+    console.warn(`🚫 ${startUrl} blocked by robots.txt`);
+    return {
+      brokenLinks: [],
+      checkedUrls: [],
+    };
+  }
+
   while (toVisit.length > 0) {
     const { url, depth } = toVisit.shift();
-    if (!url || visitedUrls.has(url) || depth > maxDepth) continue;
-    visitedUrls.add(url);
-
-    if (!robots.isAllowed(url, '*')) {
-      console.log('Blocked by robots.txt:', url);
+    if (!url || visitedUrls.has(url) || depth > 3) {
+      console.log(`⏭️ Skipping ${url}: ${!url ? 'invalid' : visitedUrls.has(url) ? 'visited' : 'max depth'}`);
       continue;
     }
+    visitedUrls.add(url);
 
     try {
+      console.log(`🌐 Fetching ${url}`);
       const response = await axiosInstance.get(url);
       const html = response.data;
       const $ = cheerio.load(html);
@@ -74,80 +82,55 @@ async function scanLinks(startUrl, maxDepth = 3) {
 
       const checkPromises = resourceLinks.map(link => limit(async () => {
         const absolute = normalizeUrl(new URL(link, url).href);
-        if (!absolute || checkedUrls.has(absolute)) return;
-        if (!absolute.startsWith(base)) return;
+        if (!absolute || checkedUrls.has(absolute)) {
+          console.log(`⏭️ Skipping resource ${absolute}: ${!absolute ? 'invalid' : 'already checked'}`);
+          return;
+        }
+        if (!absolute.startsWith(base)) {
+          console.log(`⏭️ Skipping external resource ${absolute}`);
+          return;
+        }
 
         checkedUrls.add(absolute);
 
         // Follow internal HTML pages for crawling
         if (!visitedUrls.has(absolute) && absolute.endsWith('/')) {
           toVisit.push({ url: absolute, depth: depth + 1 });
+          console.log(`➡️ Added to crawl queue: ${absolute}`);
         }
 
         try {
+          console.log(`🔗 Checking resource ${absolute}`);
           const res = await axiosInstance.get(absolute, { validateStatus: null });
           if (res.status >= 400) {
             if (!brokenLinksMap.has(absolute)) {
               brokenLinksMap.set(absolute, { url: absolute, status: res.status, source: url });
+              console.log(`❌ Broken link found: ${absolute} (status: ${res.status})`);
             }
           }
-        } catch {
+        } catch (error) {
           if (!brokenLinksMap.has(absolute)) {
             brokenLinksMap.set(absolute, { url: absolute, status: 'Failed', source: url });
+            console.error(`❌ Failed to check ${absolute}: ${error.message}`);
           }
         }
       }));
 
       await Promise.allSettled(checkPromises);
     } catch (err) {
-      console.log('Failed to fetch:', url, err.message);
+      console.error(`❌ Failed to fetch ${url}: ${err.message}`);
+      brokenLinksMap.set(url, { url, status: 'Failed', source: startUrl });
     }
   }
 
-  return {
+  const result = {
     brokenLinks: Array.from(brokenLinksMap.values()),
     checkedUrls: Array.from(checkedUrls),
   };
+
+  console.log(`🏁 Scan completed for ${startUrl}: ${result.checkedUrls.length} URLs checked, ${result.brokenLinks.length} broken links found`);
+
+  return result;
 }
 
 module.exports = { scanLinks };
-
-
-
-// const axios = require('axios');
-// const cheerio = require('cheerio');
-
-// async function scanLinks(url, schedule) {
-//   console.log('Starting scan for URL:', url); // Debug log
-//   try {
-//     const response = await axios.get(url, { timeout: 10000 }); // 10-second timeout
-//     const html = response.data;
-//     const $ = cheerio.load(html);
-//     const links = $('a[href]').map((i, link) => $(link).attr('href')).get();
-//     const brokenLinks = [];
-//     const checkedUrls = [];
-
-//     for (const link of links.slice(0, 50)) { // Limit to 50 links to avoid overload
-//       try {
-//         const fullUrl = new URL(link, url).href;
-//         const linkResponse = await axios.head(fullUrl, { timeout: 5000 }); // 5-second timeout
-//         if (linkResponse.status >= 400) {
-//           brokenLinks.push({ url: fullUrl, status: linkResponse.status, source: url });
-//         }
-//         checkedUrls.push(fullUrl);
-//       } catch (error) {
-//         console.log('Link check error for', link, ':', error.message); // Debug log
-//         brokenLinks.push({ url: link, status: 'Failed', source: url });
-//         checkedUrls.push(link);
-//       }
-//     }
-
-//     console.log('Scan completed for', url, 'with', brokenLinks.length, 'broken links'); // Debug log
-//     return { brokenLinks, checkedUrls };
-//   } catch (error) {
-//     console.error('Scan failed for', url, ':', error.message); // Log scan failure
-//     return { brokenLinks: [], checkedUrls: [] };
-//   }
-// }
-
-// module.exports = { scanLinks };

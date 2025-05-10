@@ -9,8 +9,8 @@ const { CronJob } = require('cron');
 
 
 const runDomainScan = async (domainId, userId) => {
-  console.log(domainId, userId);
-  
+  console.log(`🚀 Starting scan for domainId: ${domainId}, userId: ${userId}`);
+
   // 1. Verify domain belongs to user
   const domain = await Domain.findOne({
     _id: domainId,
@@ -18,16 +18,32 @@ const runDomainScan = async (domainId, userId) => {
   });
 
   if (!domain) {
+    console.error(`❌ Domain not found or not authorized: domainId=${domainId}, userId=${userId}`);
     throw new Error('Domain not found or not authorized');
   }
 
-  console.log(domain, "domain");
+  console.log(`📄 Domain found: ${domain.url}, schedule: ${domain.schedule}`);
 
-  // 2. Run the scan
-  const report = await scanLinks(domain.url, domain.schedule);
-  console.log(report, "report runDomainScan");
+  // 2. Validate URL
+  try {
+    new URL(domain.url);
+  } catch (error) {
+    console.error(`❌ Invalid URL: ${domain.url}, error: ${error.message}`);
+    throw new Error(`Invalid URL: ${domain.url}`);
+  }
 
-  // 3. Save the report
+  // 3. Run the scan
+  let report;
+  try {
+    console.log(`🔍 Running scanLinks for ${domain.url}`);
+    report = await scanLinks(domain.url, domain.schedule);
+    console.log(`✅ Scan completed for ${domain.url}: ${report.checkedUrls.length} URLs checked, ${report.brokenLinks.length} broken links found`);
+  } catch (error) {
+    console.error(`❌ scanLinks failed for ${domain.url}: ${error.message}`);
+    throw error;
+  }
+
+  // 4. Save the report
   const newReport = new Report({
     domainId: domain._id,
     brokenLinks: report.brokenLinks,
@@ -36,14 +52,16 @@ const runDomainScan = async (domainId, userId) => {
   });
 
   await newReport.save();
+  console.log(`💾 Report saved: reportId=${newReport._id}`);
 
-  // 4. Fetch user for email
+  // 5. Fetch user for email
   const user = await User.findById(userId);
   if (!user) {
+    console.error(`❌ User not found: userId=${userId}`);
     throw new Error('User not found');
   }
 
-  // 5. Prepare email
+  // 6. Prepare email
   const emailSubject = `Link Scan Completed for ${domain.url}`;
   const emailBody = `
   <!DOCTYPE html>
@@ -92,12 +110,13 @@ const runDomainScan = async (domainId, userId) => {
     text: "Testing text",
   };
 
-  console.log(emailData, "emailData");
+  console.log(`📧 Preparing email for ${user.email}`);
 
-  // 6. Send email
+  // 7. Send email
   await sendEmail(emailData, domain._id, userId);
+  console.log(`📬 Email sent to ${user.email}`);
 
-  // 7. Return success data
+  // 8. Return success data
   return {
     message: 'Scan completed',
     reportId: newReport._id,
@@ -108,36 +127,46 @@ function startCronJobs() {
   console.log("🟢 Starting cron jobs...");
 
   // Daily scans at 2:05 PM IST (14:05 UTC +5:30 = 8:35 UTC, but since you're using 'Asia/Kolkata', just use 14:05)
-  new CronJob('50 14 * * *', async () => {
-    console.log('🚀 Starting daily scan job at 2:05 PM IST...');
-    try {
-      const users = await User.find({});
-      console.log(`👥 Found ${users.length} users.`);
+// Daily scans at 2:05 PM IST
+new CronJob('42 20 * * *', async () => {
+  console.log('🚀 Starting daily scan job at 2:05 PM IST...');
+  try {
+    const users = await User.find({});
+    console.log(`👥 Found ${users.length} users.`);
 
-      for (const user of users) {
-        const domains = await Domain.find({ userId: user._id, schedule: 'daily' });
-        console.log(`📄 User ${user.email} has ${domains.length} daily domains.`);
+    for (const user of users) {
+      const domains = await Domain.find({ userId: user._id, schedule: 'daily' });
+      console.log(`📄 User ${user.email} has ${domains.length} daily domains.`);
 
-        for (const domain of domains) {
+      // Process domains in batches of 5 with a 1-minute delay between batches
+      const batchSize = 5;
+      for (let i = 0; i < domains.length; i += batchSize) {
+        const batch = domains.slice(i, i + batchSize);
+        console.log(`🔄 Processing batch ${i / batchSize + 1} of ${Math.ceil(domains.length / batchSize)}`);
+
+        for (const domain of batch) {
           try {
-            console.log(domain,"domains");
-            
             console.log(`🔍 Scanning ${domain.url} for user ${user.email}`);
-            // await analyzeWebsite(domain.url, user._id, domain._id);
-            // await scanLinks(domain.url);
-            await runDomainScan(domain._id, user._id )
+            await runDomainScan(domain._id, user._id);
             console.log(`✅ Completed scan for ${domain.url}`);
           } catch (scanErr) {
-            console.error(`❌ Error scanning ${domain.url}:`, scanErr.message);
+            console.error(`❌ Error scanning ${domain.url}: ${scanErr.message}`);
           }
         }
-      }
 
-      console.log('🎉 Daily scans completed for all users.');
-    } catch (error) {
-      console.error('🛑 Daily scan error:', error.message);
+        // Wait 1 minute before the next batch
+        if (i + batchSize < domains.length) {
+          console.log('⏳ Waiting 1 minute before next batch...');
+          await new Promise(resolve => setTimeout(resolve, 60 * 1000));
+        }
+      }
     }
-  }, null, true, 'Asia/Kolkata');
+
+    console.log('🎉 Daily scans completed for all users.');
+  } catch (error) {
+    console.error('🛑 Daily scan error:', error.message);
+  }
+}, null, true, 'Asia/Kolkata');
 
   // Weekly scans (Sunday at 12:00 AM UTC)
 // Weekly scans (Sunday at 12:00 AM UTC)
