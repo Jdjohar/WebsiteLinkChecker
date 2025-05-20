@@ -11,6 +11,7 @@ const reportSchema = new mongoose.Schema({
     },
   ],
   checkedUrls: [{ type: String }],
+  allStatuses: [{ url: String, status: String, source: String }],
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -60,43 +60,65 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
                     </button>
                   </td>
                 </tr>
-                {expandedReport === report._id && (
-                  <tr>
-                    <td colSpan={5} className="border p-2">
-                      <h3 className="font-bold mb-2">Broken Links</h3>
-                      {report.brokenLinks.length === 0 ? (
-                        <p>No broken links found.</p>
-                      ) : (
-                        <table className="w-full border-collapse">
-                          <thead>
-                            <tr className="bg-gray-50">
-                              <th className="border p-2">URL</th>
-                              <th className="border p-2">Status</th>
-                              <th className="border p-2">Source</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {report.brokenLinks.map((link, index) => (
-                              <tr key={index}>
-                                <td className="border p-2">
-                                  <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-primary">
-                                    {link.url}
-                                  </a>
-                                </td>
-                                <td className="border p-2">{link.status}</td>
-                                <td className="border p-2">
-                                  <a href={link.source} target="_blank" rel="noopener noreferrer" className="text-primary">
-                                    {link.source}
-                                  </a>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )}
-                    </td>
-                  </tr>
-                )}
+              {expandedReport === report._id && (
+  <tr>
+    <td colSpan={5} className="border p-4 bg-gray-50">
+      {/* Broken Links Section */}
+      <div className="mb-4">
+        <h3 className="font-bold mb-2 text-lg">Broken Links</h3>
+        {report.brokenLinks.length === 0 ? (
+          <p>No broken links found.</p>
+        ) : (
+          <table className="w-full border-collapse mb-4">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="border p-2">URL</th>
+                <th className="border p-2">Status</th>
+                <th className="border p-2">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.brokenLinks.map((link, index) => (
+                <tr key={index}>
+                  <td className="border p-2">
+                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-primary">
+                      {link.url}
+                    </a>
+                  </td>
+                  <td className="border p-2">{link.status}</td>
+                  <td className="border p-2">
+                    <a href={link.source} target="_blank" rel="noopener noreferrer" className="text-primary">
+                      {link.source}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Checked URLs Section */}
+      <div>
+        <h3 className="font-bold mb-2 text-lg">Checked URLs</h3>
+        {report.checkedUrls.length === 0 ? (
+          <p>No URLs were checked.</p>
+        ) : (
+          <ul className="list-disc list-inside space-y-1">
+            {report.checkedUrls.map((url, index) => (
+              <li key={index}>
+                <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary">
+                  {url}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </td>
+  </tr>
+)}
+
               </React.Fragment>
             ))}
           </tbody>

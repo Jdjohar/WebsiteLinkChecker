@@ -1,11 +1,12 @@
 const axios = require('axios');
 const { analyzeWebsite } = require('./broken-link-checker');
+// const { scanLinks } = require('./puppeteerScanner')
 const { scanLinks } = require('./linkScanner')
 const Domain = require('../models/Domain');
 const Report = require('../models/Report')
 const User = require('../models/User');
 const { sendEmail } = require('../utils/email')
-const { CronJob } = require('cron');
+  const { CronJob } = require('cron');
 
 
 const runDomainScan = async (domainId, userId) => {
@@ -32,11 +33,23 @@ const runDomainScan = async (domainId, userId) => {
     throw new Error(`Invalid URL: ${domain.url}`);
   }
 
+   // 5. Fetch user for email
+  const user = await User.findById(userId);
+  if (!user) {
+    console.error(`❌ User not found: userId=${userId}`);
+    throw new Error('User not found');
+  }
+
   // 3. Run the scan
   let report;
   try {
     console.log(`🔍 Running scanLinks for ${domain.url}`);
-    report = await scanLinks(domain.url, domain.schedule);
+    report = await scanLinks(domain.url, domain.schedule,{
+  maxDepth: user.plan === 'advanced' ? Infinity : 5,
+  blogPageUrl: `${domain.url}/blogs/`,
+});
+    console.log(report,"report:");
+    
     console.log(`✅ Scan completed for ${domain.url}: ${report.checkedUrls.length} URLs checked, ${report.brokenLinks.length} broken links found`);
   } catch (error) {
     console.error(`❌ scanLinks failed for ${domain.url}: ${error.message}`);
@@ -54,12 +67,7 @@ const runDomainScan = async (domainId, userId) => {
   await newReport.save();
   console.log(`💾 Report saved: reportId=${newReport._id}`);
 
-  // 5. Fetch user for email
-  const user = await User.findById(userId);
-  if (!user) {
-    console.error(`❌ User not found: userId=${userId}`);
-    throw new Error('User not found');
-  }
+  
 
   // 6. Prepare email
   const emailSubject = `Link Scan Completed for ${domain.url}`;
@@ -128,7 +136,7 @@ function startCronJobs() {
 
   // Daily scans at 2:05 PM IST (14:05 UTC +5:30 = 8:35 UTC, but since you're using 'Asia/Kolkata', just use 14:05)
 // Daily scans at 2:05 PM IST
-new CronJob('42 20 * * *', async () => {
+new CronJob('50 11 * * *', async () => {
   console.log('🚀 Starting daily scan job at 2:05 PM IST...');
   try {
     const users = await User.find({});
