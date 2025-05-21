@@ -6,8 +6,7 @@ const Domain = require('../models/Domain');
 const Report = require('../models/Report')
 const User = require('../models/User');
 const { sendEmail } = require('../utils/email')
-  const { CronJob } = require('cron');
-
+const { CronJob } = require('cron');
 
 const runDomainScan = async (domainId, userId) => {
   console.log(`🚀 Starting scan for domainId: ${domainId}, userId: ${userId}`);
@@ -33,7 +32,7 @@ const runDomainScan = async (domainId, userId) => {
     throw new Error(`Invalid URL: ${domain.url}`);
   }
 
-   // 5. Fetch user for email
+  // 5. Fetch user for email
   const user = await User.findById(userId);
   if (!user) {
     console.error(`❌ User not found: userId=${userId}`);
@@ -44,23 +43,23 @@ const runDomainScan = async (domainId, userId) => {
   let report;
   try {
     console.log(`🔍 Running scanLinks for ${domain.url}`);
-    report = await scanLinks(domain.url, domain.schedule,{
-  maxDepth: user.plan === 'advanced' ? Infinity : 5,
-  blogPageUrl: `${domain.url}blogs/`,
-});
-    console.log(report,"report:");
+    report = await scanLinks(domain.url, domain.schedule, {
+      maxDepth: user.plan === 'advanced' ? Infinity : 5,
+      blogPageUrl: `${domain.url}blogs/`,
+    });
+    console.log(report, "report:");
     
     console.log(`✅ Scan completed for ${domain.url}: ${report.checkedUrls.length} URLs checked, ${report.brokenLinks.length} broken links found`);
   } catch (error) {
     console.error(`❌ scanLinks failed for ${domain.url}: ${error.message}`);
     throw error;
   }
-  console.log("✅✅✅✅✅✅ report.brokenLinks: ",report.brokenLinks);
+  console.log("✅✅✅✅✅✅ report.brokenLinks: ", report.brokenLinks);
   
-const fixedBrokenLinks = report.brokenLinks.map(link => ({
-  ...link,
-  text: link.text || 'No text available',
-}));
+  const fixedBrokenLinks = report.brokenLinks.map(link => ({
+    ...link,
+    text: link.text || 'No text available',
+  }));
 
   // 4. Save the report
   const newReport = new Report({
@@ -73,62 +72,67 @@ const fixedBrokenLinks = report.brokenLinks.map(link => ({
   await newReport.save();
   console.log(`💾 Report saved: reportId=${newReport._id}`);
 
-  
+  // 6. Send email only if there are broken links
+  if (report.brokenLinks.length > 0) {
+    console.log(`📧 Broken links found: ${report.brokenLinks.length}. Preparing email for ${user.email}`);
 
-  // 6. Prepare email
-  const emailSubject = `Link Scan Completed for ${domain.url}`;
-  const emailBody = `
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-      body { font-family: Arial, sans-serif; color: #333; background-color: #f4f4f4; margin: 0; padding: 20px; }
-      .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-      .header { background: #003087; color: #fff; padding: 20px; text-align: center; border-top-left-radius: 8px; border-top-right-radius: 8px; }
-      .header h1 { margin: 0; font-size: 24px; }
-      .content { padding: 20px; }
-      h2 { color: #003087; font-size: 20px; margin-top: 0; }
-      p { line-height: 1.6; }
-      .footer { text-align: center; padding: 20px; border-top: 1px solid #ddd; font-size: 14px; color: #777; }
-      .footer a { color: #003087; text-decoration: none; }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <h1>Link Scan Report for ${domain.url}</h1>
+    // Prepare email
+    const emailSubject = `Link Scan Completed for ${domain.url}`;
+    const emailBody = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { font-family: Arial, sans-serif; color: #333; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header { background: #003087; color: #fff; padding: 20px; text-align: center; border-top-left-radius: 8px; border-top-right-radius: 8px; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .content { padding: 20px; }
+        h2 { color: #003087; font-size: 20px; margin-top: 0; }
+        p { line-height: 1.6; }
+        .footer { text-align: center; padding: 20px; border-top: 1px solid #ddd; font-size: 14px; color: #777; }
+        .footer a { color: #003087; text-decoration: none; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Link Scan Report for ${domain.url}</h1>
+        </div>
+        <div class="content">
+          <h2>Hello ${user.email},</h2>
+          <p>The link scan for your domain <strong>${domain.url}</strong> has been completed. Here are the results:</p>
+          <ul>
+            <li><strong>Broken Links:</strong> ${report.brokenLinks.length}</li>
+            <li><strong>Total URLs Checked:</strong> ${report.checkedUrls.length}</li>
+          </ul>
+          <p>You can view more details in your <a href="${process.env.DASHBOARD_URL}">dashboard</a>.</p>
+          <p>Thank you for using our service!</p>
+        </div>
+        <div class="footer">
+          <p>Generated by Website Link Checker | <a href="${process.env.FRONTEND_URL}">Visit Us</a></p>
+        </div>
       </div>
-      <div class="content">
-        <h2>Hello ${user.email},</h2>
-        <p>The link scan for your domain <strong>${domain.url}</strong> has been completed. Here are the results:</p>
-        <ul>
-          <li><strong>Broken Links:</strong> ${report.brokenLinks.length}</li>
-          <li><strong>Total URLs Checked:</strong> ${report.checkedUrls.length}</li>
-        </ul>
-        <p>You can view more details in your <a href="${process.env.DASHBOARD_URL}">dashboard</a>.</p>
-        <p>Thank you for using our service!</p>
-      </div>
-      <div class="footer">
-        <p>Generated by Website Link Checker | <a href="${process.env.FRONTEND_URL}">Visit Us</a></p>
-      </div>
-    </div>
-  </body>
-  </html>
-`;
+    </body>
+    </html>
+    `;
 
-  const emailData = {
-    ...newReport.toObject(),
-    html: emailBody,
-    text: "Testing text",
-  };
+    const emailData = {
+      ...newReport.toObject(),
+      html: emailBody,
+      text: "Testing text",
+    };
 
-  console.log(`📧 Preparing email for ${user.email}`);
+    console.log(`📧 Sending email to ${user.email}`);
 
-  // 7. Send email
-  await sendEmail(emailData, domain._id, userId);
-  console.log(`📬 Email sent to ${user.email}`);
+    // 7. Send email
+    await sendEmail(emailData, domain._id, userId);
+    console.log(`📬 Email sent to ${user.email}`);
+  } else {
+    console.log(`✅ No broken links found for ${domain.url}. Skipping email.`);
+  }
 
   // 8. Return success data
   return {
@@ -140,105 +144,102 @@ const fixedBrokenLinks = report.brokenLinks.map(link => ({
 function startCronJobs() {
   console.log("🟢 Starting cron jobs...");
 
-  // Daily scans at 2:05 PM IST (14:05 UTC +5:30 = 8:35 UTC, but since you're using 'Asia/Kolkata', just use 14:05)
-// Daily scans at 2:05 PM IST
-new CronJob('20 15 * * *', async () => {
-  console.log('🚀 Starting daily scan job at 2:05 PM IST...');
-  try {
-    const users = await User.find({});
-    console.log(`👥 Found ${users.length} users.`);
+  // Daily scans at 2:05 PM IST
+  new CronJob('49 15 * * *', async () => {
+    console.log('🚀 Starting daily scan job at 2:05 PM IST...');
+    try {
+      const users = await User.find({});
+      console.log(`👥 Found ${users.length} users.`);
 
-    for (const user of users) {
-      const domains = await Domain.find({ userId: user._id, schedule: 'daily' });
-      console.log(`📄 User ${user.email} has ${domains.length} daily domains.`);
+      for (const user of users) {
+        const domains = await Domain.find({ userId: user._id, schedule: 'daily' });
+        console.log(`📄 User ${user.email} has ${domains.length} daily domains.`);
 
-      // Process domains in batches of 5 with a 1-minute delay between batches
-      const batchSize = 5;
-      for (let i = 0; i < domains.length; i += batchSize) {
-        const batch = domains.slice(i, i + batchSize);
-        console.log(`🔄 Processing batch ${i / batchSize + 1} of ${Math.ceil(domains.length / batchSize)}`);
+        // Process domains in batches of 5 with a 1-minute delay between batches
+        const batchSize = 5;
+        for (let i = 0; i < domains.length; i += batchSize) {
+          const batch = domains.slice(i, i + batchSize);
+          console.log(`🔄 Processing batch ${i / batchSize + 1} of ${Math.ceil(domains.length / batchSize)}`);
 
-        for (const domain of batch) {
+          for (const domain of batch) {
+            try {
+              console.log(`🔍 Scanning ${domain.url} for user ${user.email}`);
+              await runDomainScan(domain._id, user._id);
+              console.log(`✅ Completed scan for ${domain.url}`);
+            } catch (scanErr) {
+              console.error(`❌ Error scanning ${domain.url}: ${scanErr.message}`);
+            }
+          }
+
+          // Wait 1 minute before the next batch
+          if (i + batchSize < domains.length) {
+            console.log('⏳ Waiting 1 minute before next batch...');
+            await new Promise(resolve => setTimeout(resolve, 60 * 1000));
+          }
+        }
+      }
+
+      console.log('🎉 Daily scans completed for all users.');
+    } catch (error) {
+      console.error('🛑 Daily scan error:', error.message);
+    }
+  }, null, true, 'Asia/Kolkata');
+
+  // Weekly scans (Sunday at 12:00 AM UTC)
+  new CronJob('0 0 * * 0', async () => {
+    console.log('🚀 Starting weekly scan job (Sunday 12:00 AM UTC)...');
+    try {
+      const users = await User.find({});
+      console.log(`👥 Found ${users.length} users.`);
+
+      for (const user of users) {
+        const domains = await Domain.find({ userId: user._id, schedule: 'weekly' });
+        console.log(`📄 User ${user.email} has ${domains.length} weekly domains.`);
+
+        for (const domain of domains) {
           try {
             console.log(`🔍 Scanning ${domain.url} for user ${user.email}`);
             await runDomainScan(domain._id, user._id);
             console.log(`✅ Completed scan for ${domain.url}`);
           } catch (scanErr) {
-            console.error(`❌ Error scanning ${domain.url}: ${scanErr.message}`);
+            console.error(`❌ Error scanning ${domain.url}:`, scanErr.message);
           }
         }
+      }
 
-        // Wait 1 minute before the next batch
-        if (i + batchSize < domains.length) {
-          console.log('⏳ Waiting 1 minute before next batch...');
-          await new Promise(resolve => setTimeout(resolve, 60 * 1000));
+      console.log('🎉 Weekly scans completed for all users.');
+    } catch (error) {
+      console.error('🛑 Weekly scan error:', error.message);
+    }
+  }, null, true, 'UTC');
+
+  // Monthly scans (1st of every month at 12:00 AM UTC)
+  new CronJob('0 0 1 * *', async () => {
+    console.log('🚀 Starting monthly scan job (1st day 12:00 AM UTC)...');
+    try {
+      const users = await User.find({});
+      console.log(`👥 Found ${users.length} users.`);
+
+      for (const user of users) {
+        const domains = await Domain.find({ userId: user._id, schedule: 'monthly' });
+        console.log(`📄 User ${user.email} has ${domains.length} monthly domains.`);
+
+        for (const domain of domains) {
+          try {
+            console.log(`🔍 Scanning ${domain.url} for user ${user.email}`);
+            await runDomainScan(domain._id, user._id);
+            console.log(`✅ Completed scan for ${domain.url}`);
+          } catch (scanErr) {
+            console.error(`❌ Error scanning ${domain.url}:`, scanErr.message);
+          }
         }
       }
+
+      console.log('🎉 Monthly scans completed for all users.');
+    } catch (error) {
+      console.error('🛑 Monthly scan error:', error.message);
     }
-
-    console.log('🎉 Daily scans completed for all users.');
-  } catch (error) {
-    console.error('🛑 Daily scan error:', error.message);
-  }
-}, null, true, 'Asia/Kolkata');
-
-  // Weekly scans (Sunday at 12:00 AM UTC)
-// Weekly scans (Sunday at 12:00 AM UTC)
-new CronJob('0 0 * * 0', async () => {
-  console.log('🚀 Starting weekly scan job (Sunday 12:00 AM UTC)...');
-  try {
-    const users = await User.find({});
-    console.log(`👥 Found ${users.length} users.`);
-
-    for (const user of users) {
-      const domains = await Domain.find({ userId: user._id, schedule: 'weekly' });
-      console.log(`📄 User ${user.email} has ${domains.length} weekly domains.`);
-
-      for (const domain of domains) {
-        try {
-          console.log(`🔍 Scanning ${domain.url} for user ${user.email}`);
-          await runDomainScan(domain._id, user._id);
-          console.log(`✅ Completed scan for ${domain.url}`);
-        } catch (scanErr) {
-          console.error(`❌ Error scanning ${domain.url}:`, scanErr.message);
-        }
-      }
-    }
-
-    console.log('🎉 Weekly scans completed for all users.');
-  } catch (error) {
-    console.error('🛑 Weekly scan error:', error.message);
-  }
-}, null, true, 'UTC');
-
-// Monthly scans (1st of every month at 12:00 AM UTC)
-new CronJob('0 0 1 * *', async () => {
-  console.log('🚀 Starting monthly scan job (1st day 12:00 AM UTC)...');
-  try {
-    const users = await User.find({});
-    console.log(`👥 Found ${users.length} users.`);
-
-    for (const user of users) {
-      const domains = await Domain.find({ userId: user._id, schedule: 'monthly' });
-      console.log(`📄 User ${user.email} has ${domains.length} monthly domains.`);
-
-      for (const domain of domains) {
-        try {
-          console.log(`🔍 Scanning ${domain.url} for user ${user.email}`);
-          await runDomainScan(domain._id, user._id);
-          console.log(`✅ Completed scan for ${domain.url}`);
-        } catch (scanErr) {
-          console.error(`❌ Error scanning ${domain.url}:`, scanErr.message);
-        }
-      }
-    }
-
-    console.log('🎉 Monthly scans completed for all users.');
-  } catch (error) {
-    console.error('🛑 Monthly scan error:', error.message);
-  }
-}, null, true, 'UTC');
-
+  }, null, true, 'UTC');
 
   // Keep-alive ping every 14 minutes
   new CronJob('*/14 * * * *', async () => {
