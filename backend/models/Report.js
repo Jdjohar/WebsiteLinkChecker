@@ -8,6 +8,7 @@ const reportSchema = new mongoose.Schema({
       url: { type: String, required: true },
       status: { type: String, required: true },
       source: { type: String, required: true },
+      text: { type: String, required: true },
     },
   ],
   checkedUrls: [{ type: String }],

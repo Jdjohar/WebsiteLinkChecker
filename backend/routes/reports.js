@@ -3,9 +3,10 @@ const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const Report = require('../models/Report');
 const Domain = require('../models/Domain');
-const { scanLinks } = require('../utils/puppeteerScanner');
+const { scanLinks } = require('../utils/linkScanner')
 const { sendEmail } = require('../utils/email')
 const User = require('../models/User');
+const { log } = require('winston');
 
 
  const runDomainScan = async (domainId, userId) => {
@@ -285,7 +286,21 @@ router.post('/scan/:domainId', authMiddleware, async (req, res) => {
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const reports = await Report.find({ domainId: { $in: await Domain.find({ userId: req.user.userId }).select('_id') } });
-    res.json(reports);
+    res.json(reports.map(report => ({
+      _id: report._id,
+      domainId: report.domainId,
+      userId: report.userId,
+      brokenLinks: report.brokenLinks.map(link => ({
+        url: link.url,
+        status: link.status,
+        source: link.source,
+        text: link.text, // Include text in the response
+      })),
+      checkedUrls: report.checkedUrls,
+      allStatuses: report.allStatuses,
+      createdAt: report.createdAt,
+    })));
+    console.log(reports, "reports");
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }

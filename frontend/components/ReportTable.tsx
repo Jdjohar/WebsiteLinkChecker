@@ -2,6 +2,7 @@ import React from 'react';
 import { useState } from 'react';
 
 interface BrokenLink {
+  text: string;
   url: string;
   status: string;
   source: string;
@@ -44,7 +45,9 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
             </tr>
           </thead>
           <tbody>
+
             {reports.map((report) => (
+              
               <React.Fragment key={report._id}>
                 <tr>
                   <td className="border p-2">{new Date(report.createdAt).toLocaleString()}</td>
@@ -74,6 +77,7 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
               <tr className="bg-gray-100">
                 <th className="border p-2">URL</th>
                 <th className="border p-2">Status</th>
+                <th className="border p-2">Text</th>
                 <th className="border p-2">Source</th>
               </tr>
             </thead>
@@ -86,6 +90,7 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
                     </a>
                   </td>
                   <td className="border p-2">{link.status}</td>
+                  <td className="border p-2">{link.text}</td>
                   <td className="border p-2">
                     <a href={link.source} target="_blank" rel="noopener noreferrer" className="text-primary">
                       {link.source}

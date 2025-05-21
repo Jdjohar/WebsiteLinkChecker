@@ -61,7 +61,7 @@ async function checkLink(linkUrl, sourceUrl, brokenLinks, checkedUrls) {
   try {
     const response = await axios.get(linkUrl, { timeout: 5000 });
     if (response.status < 200 || response.status >= 400) {
-      brokenLinks.push({ url: linkUrl, status: response.status, source: sourceUrl });
+      brokenLinks.push({ url: linkUrl, status: response.status, text:brokenLinks.text,  source: sourceUrl });
     }
   } catch (error) {
     const status = error.response ? error.response.status : 'Unreachable';
@@ -251,7 +251,7 @@ async function collectLinks(websiteUrl) {
 
 // Check all links
 async function checkAllLinks(urlsToCheck, websiteUrl, brokenLinks, checkedUrls) {
-  console.log(`Checking ${urlsToCheck.length} URLs for ${websiteUrl}...`);
+  console.log(`Checking ${urlsToCheck.length} || brokenLinks ${brokenLinks} || URLs for ${websiteUrl}...`);
   for (let i = 0; i < urlsToCheck.length; i += CONCURRENT_REQUESTS) {
     const batch = urlsToCheck.slice(i, i + CONCURRENT_REQUESTS);
     await Promise.all(

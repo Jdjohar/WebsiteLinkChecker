@@ -40,6 +40,9 @@ async function fetchRobotsTxt(baseUrl) {
 }
 
 async function scanLinks(startUrl, schedule) {
+
+  console.log("StartLink From Puppeteer");
+  
   startUrl = startUrl.replace(/^http:/, 'https:');
   console.log(`🔍 Starting scan for ${startUrl}, schedule: ${schedule}`);
 
@@ -159,7 +162,7 @@ async function scanLinks(startUrl, schedule) {
     checkedUrls: Array.from(checkedUrls)
   };
 
-  console.log(`🏁 Scan completed for ${startUrl}: ${result.checkedUrls.length} URLs checked, ${result.brokenLinks.length} broken links found`);
+  console.log(`🏁 Scan completed for ${startUrl}: ${result.checkedUrls.length} URLs checked, ${result.brokenLinks.length} broken links found PuppeteerScanner`);
 
   return result;
 }

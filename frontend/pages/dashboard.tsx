@@ -54,6 +54,8 @@ export default function Dashboard() {
         axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/stripe/status`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       setDomains(domainsRes.data || []);
+      console.log(reportsRes,"reportsRes.data");
+      
       setReports(reportsRes.data || []);
       setPlan(statusRes.data.plan || 'free');
     } catch (error: any) {

@@ -248,68 +248,73 @@ async function scanLinks(startUrl, schedule, options = {}) {
       const response = await axiosInstance.get(url, { validateStatus: null });
       statusMap.set(url, { url, status: response.status, source: startUrl });
 
-      if (response.status >= 200 && response.status < 300) {
-        const html = response.data;
-        const $ = cheerio.load(html);
-        const resourceLinks = [];
+ // Inside the scanLinks function, replace the resourceLinks extraction block
+if (response.status >= 200 && response.status < 300) {
+  const html = response.data;
+  const $ = cheerio.load(html);
+  const resourceLinks = [];
 
-        // Extract links with Cheerio
-        $('a[href], link[href], script[src], img[src], source[src], video[src], audio[src], iframe[src]').each((_, el) => {
-          const attr = $(el).attr('href') || $(el).attr('src');
-          if (attr) resourceLinks.push(attr);
-        });
-        $('meta[http-equiv="refresh"]').each((_, el) => {
-          const content = $(el).attr('content');
-          if (content) {
-            const match = content.match(/url=(.+)/i);
-            if (match) resourceLinks.push(match[1]);
-          }
-        });
-        $('script[type="application/ld+json"]').each((_, el) => {
-          try {
-            const json = JSON.parse($(el).html());
-            const extractUrls = (obj) => {
-              if (typeof obj === 'string' && obj.startsWith('http')) resourceLinks.push(obj);
-              if (typeof obj === 'object') Object的金值(obj).forEach(extractUrls);
-            };
-            extractUrls(json);
-          } catch (e) {}
-        });
+  // Extract links with their text content
+  $('a[href], link[href], script[src], img[src], source[src], video[src], audio[src], iframe[src]').each((_, el) => {
+    const attr = $(el).attr('href') || $(el).attr('src');
+    if (attr) {
+      // For <a> tags, capture the text content
+      const text = $(el).is('a') ? $(el).text().trim() : '';
+      resourceLinks.push({ url: attr, text });
+    }
+  });
+  $('meta[http-equiv="refresh"]').each((_, el) => {
+    const content = $(el).attr('content');
+    if (content) {
+      const match = content.match(/url=(.+)/i);
+      if (match) resourceLinks.push({ url: match[1], text: '' });
+    }
+  });
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const json = JSON.parse($(el).html());
+      const extractUrls = (obj) => {
+        if (typeof obj === 'string' && obj.startsWith('http')) resourceLinks.push({ url: obj, text: '' });
+        if (typeof obj === 'object') Object.values(obj).forEach(extractUrls);
+      };
+      extractUrls(json);
+    } catch (e) {}
+  });
 
-        const checkPromises = resourceLinks.map(link =>
-          limit(async () => {
-            const absolute = normalizeUrl(new URL(link, url).href);
-            if (!absolute || checkedUrls.has(absolute)) return;
-            if (!absolute.startsWith(base)) return;
+  const checkPromises = resourceLinks.map(({ url: link, text }) =>
+    limit(async () => {
+      const absolute = normalizeUrl(new URL(link, url).href);
+      if (!absolute || checkedUrls.has(absolute)) return;
+      if (!absolute.startsWith(base)) return;
 
-            checkedUrls.add(absolute);
+      checkedUrls.add(absolute);
 
-            if (!visitedUrls.has(absolute) && (absolute.endsWith('/') || absolute.match(/\.(html|php)$/))) {
-              toVisit.push({ url: absolute, depth: depth + 1 });
-              console.log(`➡️ Added to crawl queue: ${absolute}`);
-            }
-
-            for (let attempt = 1; attempt <= 3; attempt++) {
-              try {
-                console.log(`🔗 Checking resource ${absolute} (attempt ${attempt})`);
-                const res = await axiosInstance.get(absolute, { validateStatus: null });
-                if (!statusMap.has(absolute)) {
-                  statusMap.set(absolute, { url: absolute, status: res.status, source: url });
-                  console.log(`ℹ️ Status for ${absolute}: ${res.status}`);
-                }
-                break;
-              } catch (error) {
-                if (attempt === 3) {
-                  statusMap.set(absolute, { url: absolute, status: 'Failed', source: url });
-                  console.error(`❌ Failed to check ${absolute}: ${error.message}`);
-                }
-              }
-            }
-          })
-        );
-
-        await Promise.allSettled(checkPromises);
+      if (!visitedUrls.has(absolute) && (absolute.endsWith('/') || absolute.match(/\.(html|php)$/))) {
+        toVisit.push({ url: absolute, depth: depth + 1 });
+        console.log(`➡️ Added to crawl queue: ${absolute}`);
       }
+
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`🔗 Checking resource ${absolute} (attempt ${attempt})`);
+          const res = await axiosInstance.get(absolute, { validateStatus: null });
+          if (!statusMap.has(absolute)) {
+            statusMap.set(absolute, { url: absolute, status: res.status, source: url, text });
+            console.log(`ℹ️ Status for ${absolute}: ${res.status}, Text: ${text}`);
+          }
+          break;
+        } catch (error) {
+          if (attempt === 3) {
+            statusMap.set(absolute, { url: absolute, status: 'Failed', source: url, text });
+            console.error(`❌ Failed to check ${absolute}: ${error.message}`);
+          }
+        }
+      }
+    })
+  );
+
+  await Promise.allSettled(checkPromises);
+}
     } catch (err) {
       statusMap.set(url, { url, status: 'Failed', source: startUrl });
       console.error(`❌ Failed to fetch ${url}: ${err.message}`);

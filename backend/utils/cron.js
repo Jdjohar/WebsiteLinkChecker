@@ -46,7 +46,7 @@ const runDomainScan = async (domainId, userId) => {
     console.log(`🔍 Running scanLinks for ${domain.url}`);
     report = await scanLinks(domain.url, domain.schedule,{
   maxDepth: user.plan === 'advanced' ? Infinity : 5,
-  blogPageUrl: `${domain.url}/blogs/`,
+  blogPageUrl: `${domain.url}blogs/`,
 });
     console.log(report,"report:");
     
@@ -55,11 +55,17 @@ const runDomainScan = async (domainId, userId) => {
     console.error(`❌ scanLinks failed for ${domain.url}: ${error.message}`);
     throw error;
   }
+  console.log("✅✅✅✅✅✅ report.brokenLinks: ",report.brokenLinks);
+  
+const fixedBrokenLinks = report.brokenLinks.map(link => ({
+  ...link,
+  text: link.text || 'No text available',
+}));
 
   // 4. Save the report
   const newReport = new Report({
     domainId: domain._id,
-    brokenLinks: report.brokenLinks,
+    brokenLinks: fixedBrokenLinks,
     userId: userId,
     checkedUrls: report.checkedUrls,
   });
@@ -136,7 +142,7 @@ function startCronJobs() {
 
   // Daily scans at 2:05 PM IST (14:05 UTC +5:30 = 8:35 UTC, but since you're using 'Asia/Kolkata', just use 14:05)
 // Daily scans at 2:05 PM IST
-new CronJob('50 11 * * *', async () => {
+new CronJob('2 15 * * *', async () => {
   console.log('🚀 Starting daily scan job at 2:05 PM IST...');
   try {
     const users = await User.find({});
