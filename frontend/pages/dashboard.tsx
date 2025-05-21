@@ -18,7 +18,7 @@ interface Domain {
 interface Report {
   _id: string;
   domainId: string;
-  brokenLinks: { url: string; status: string; source: string }[];
+  brokenLinks: { url: string; status: string; text:string; source: string }[];
   checkedUrls: string[];
   createdAt: string;
 }
