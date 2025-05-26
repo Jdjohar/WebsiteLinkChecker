@@ -108,7 +108,7 @@ const runDomainScan = async (domainId, userId) => {
             <li><strong>Broken Links:</strong> ${report.brokenLinks.length}</li>
             <li><strong>Total URLs Checked:</strong> ${report.checkedUrls.length}</li>
           </ul>
-          <p>You can view more details in your <a href="${process.env.DASHBOARD_URL}">dashboard</a>.</p>
+          <p>You can view more details in your <a href="${process.env.FRONTEND_URL}">dashboard</a>.</p>
           <p>Thank you for using our service!</p>
         </div>
         <div class="footer">
