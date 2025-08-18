@@ -143,8 +143,10 @@ console.log(`📬 Email sent to ${user.email}`);
 function startCronJobs() {
   console.log("🟢 Starting cron jobs...");
 
+
+  
   // Daily scans at 10 18 PM IST
-  new CronJob('10 18 * * *', async () => {
+  new CronJob('29 2 * * *', async () => {
     console.log('🚀 Starting daily scan job at 10 18 PM IST...');
     try {
       const users = await User.find({});

@@ -13,6 +13,41 @@ const CONCURRENT_REQUESTS = 10;
 const REQUEST_DELAY = 200;
 const MAX_URLS_PER_SITE = 500;
 
+
+// Normalize URL (ensure trailing slash removed, consistent format)
+function normalizeUrl(url) {
+  try {
+    return new URL(url).toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
+// Simple robots.txt checker (fallback if module not installed)
+async function fetchRobotsTxt(baseUrl) {
+  try {
+    const res = await axios.get(`${baseUrl}/robots.txt`, { timeout: 5000 });
+    const disallows = res.data
+      .split("\n")
+      .filter(line => line.startsWith("Disallow"))
+      .map(line => line.replace("Disallow:", "").trim());
+
+    return {
+      isAllowed: (url, _) => {
+        return !disallows.some(path => url.includes(path));
+      }
+    };
+  } catch {
+    return { isAllowed: () => true };
+  }
+}
+
+// Simple concurrency limiter
+function limit(fn) {
+  return fn();
+}
+
+
 // Validate URL
 function isValidUrl(string) {
   try {
@@ -150,12 +185,18 @@ async function fetchHomepageLinks(baseUrl, maxDepth = 1) {
         const href = $(el).attr('href');
         if (href) {
           const absolute = normalizeUrl(new URL(href, url).href);
-          if (absolute && absolute.startsWith(base)) {
-            foundLinks.add(absolute);
-            if (!visitedUrls.has(absolute) && absolute.endsWith('/')) {
-              toVisit.push({ url: absolute, depth: depth + 1 });
-            }
-          }
+          // if (absolute && absolute.startsWith(base)) {
+          //   foundLinks.add(absolute);
+          //   if (!visitedUrls.has(absolute) && absolute.endsWith('/')) {
+          //     toVisit.push({ url: absolute, depth: depth + 1 });
+          //   }
+          // }
+          if (absolute) {
+  foundLinks.add(absolute);
+  if (!visitedUrls.has(absolute) && absolute.endsWith('/')) {
+    toVisit.push({ url: absolute, depth: depth + 1 });
+  }
+}
         }
       });
 
@@ -196,8 +237,9 @@ async function fetchHomepageLinks(baseUrl, maxDepth = 1) {
 
 
 // Extract internal links
-async function extractInternalLinks(pageUrl, websiteUrl, checkedUrls) {
-  try {
+// async function extractInternalLinks(pageUrl, websiteUrl, checkedUrls) {
+async function extractLinks(pageUrl, checkedUrls) {  
+try {
     const response = await axios.get(pageUrl, { timeout: 5000 });
     const $ = cheerio.load(response.data);
     const links = [];
@@ -205,7 +247,8 @@ async function extractInternalLinks(pageUrl, websiteUrl, checkedUrls) {
       const href = $(element).attr('href');
       if (href) {
         const resolvedUrl = resolveUrl(pageUrl, href);
-        if (resolvedUrl && isSameDomain(websiteUrl, resolvedUrl) && !checkedUrls.has(resolvedUrl)) {
+        if (resolvedUrl && !checkedUrls.has(resolvedUrl)) {
+        // if (resolvedUrl && isSameDomain(websiteUrl, resolvedUrl) && !checkedUrls.has(resolvedUrl)) {
           links.push(resolvedUrl);
         }
       }
@@ -243,8 +286,10 @@ async function collectLinks(websiteUrl) {
     if (urlsToCheck.length >= MAX_URLS_PER_SITE) break;
     urlsToCheck.push(url);
     checkedUrls.add(url);
-    const internalLinks = await extractInternalLinks(url, websiteUrl, checkedUrls);
-    urlsToCheck.push(...internalLinks);
+    const pageLinks = await extractLinks(url, checkedUrls);
+urlsToCheck.push(...pageLinks);
+    // const internalLinks = await extractLinks(url, websiteUrl, checkedUrls);
+    // urlsToCheck.push(...internalLinks);
   }
   return [...new Set(urlsToCheck)].slice(0, MAX_URLS_PER_SITE);
 }
@@ -274,8 +319,13 @@ async function analyzeWebsite(websiteUrl, userId, domainId) {
   const brokenLinks = [];
   const checkedUrls = new Set();
   const urlsToCheck = await collectLinks(websiteUrl);
-  await checkAllLinks(urlsToCheck, websiteUrl, brokenLinks, checkedUrls);
 
+  if (!urlsToCheck || urlsToCheck.length === 0) {
+  console.warn(`No URLs found for ${websiteUrl}, scanning homepage as fallback...`);
+  urlsToCheck.push(websiteUrl); // always at least check homepage
+}
+
+await checkAllLinks(urlsToCheck, websiteUrl, brokenLinks, checkedUrls);
   const report = new Report({
     userId,
     domainId,
