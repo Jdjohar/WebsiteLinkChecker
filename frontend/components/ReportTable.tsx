@@ -1,5 +1,4 @@
-import React from 'react';
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 interface BrokenLink {
   text: string;
@@ -30,104 +29,129 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
   };
 
   return (
-    <div className="card shadow-lg overflow-x-auto">
+    <div className="card shadow-lg">
       {reports.length === 0 ? (
-        <p>No reports available.</p>
+        <p className="p-4">No reports available.</p>
       ) : (
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="border p-2">Date</th>
-              <th className="border p-2">Domain</th>
-              <th className="border p-2">Broken Links</th>
-              <th className="border p-2">URLs Checked</th>
-              <th className="border p-2">Details</th>
-            </tr>
-          </thead>
-          <tbody>
-
-            {reports.map((report) => (
-              
-              <React.Fragment key={report._id}>
-                <tr>
-                  <td className="border p-2">{new Date(report.createdAt).toLocaleString()}</td>
-                  <td className="border p-2">{getDomainUrl(report.domainId)}</td>
-                  <td className="border p-2">{report.brokenLinks.length}</td>
-                  <td className="border p-2">{report.checkedUrls.length}</td>
-                  <td className="border p-2">
-                    <button
-                      onClick={() => setExpandedReport(expandedReport === report._id ? null : report._id)}
-                      className="mt-4 w-full bg-primary text-white p-2 rounded"
-                    >
-                      {expandedReport === report._id ? 'Hide' : 'Show'} Details
-                    </button>
-                  </td>
-                </tr>
-              {expandedReport === report._id && (
-  <tr>
-    <td colSpan={5} className="border p-4 bg-gray-50">
-      {/* Broken Links Section */}
-      <div className="mb-4">
-        <h3 className="font-bold mb-2 text-lg">Broken Links</h3>
-        {report.brokenLinks.length === 0 ? (
-          <p>No broken links found.</p>
-        ) : (
-          <table className="w-full border-collapse mb-4">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="bg-gray-100">
-                <th className="border p-2">URL</th>
-                <th className="border p-2">Status</th>
-                <th className="border p-2">Text</th>
-                <th className="border p-2">Source</th>
+              <tr className="bg-gray-100 text-left">
+                <th className="border p-2">Date</th>
+                <th className="border p-2">Domain</th>
+                <th className="border p-2">Broken Links</th>
+                <th className="border p-2">URLs Checked</th>
+                <th className="border p-2">Details</th>
               </tr>
             </thead>
             <tbody>
-              {report.brokenLinks.map((link, index) => (
-                <tr key={index}>
-                  <td className="border p-2">
-                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-primary">
-                      {link.url}
-                    </a>
-                  </td>
-                  <td className="border p-2">{link.status}</td>
-                  <td className="border p-2">{link.text}</td>
-                  <td className="border p-2">
-                    <a href={link.source} target="_blank" rel="noopener noreferrer" className="text-primary">
-                      {link.source}
-                    </a>
-                  </td>
-                </tr>
+              {reports.map((report) => (
+                <React.Fragment key={report._id}>
+                  <tr>
+                    <td className="border p-2 whitespace-nowrap">
+                      {new Date(report.createdAt).toLocaleString()}
+                    </td>
+                    <td className="border p-2 break-words">{getDomainUrl(report.domainId)}</td>
+                    <td className="border p-2 text-center">{report.brokenLinks.length}</td>
+                    <td className="border p-2 text-center">{report.checkedUrls.length}</td>
+                    <td className="border p-2 text-center">
+                      <button
+                        onClick={() =>
+                          setExpandedReport(expandedReport === report._id ? null : report._id)
+                        }
+                        className="bg-primary text-white px-3 py-1 rounded hover:opacity-80 transition"
+                      >
+                        {expandedReport === report._id ? 'Hide' : 'Show'} Details
+                      </button>
+                    </td>
+                  </tr>
+
+                  {expandedReport === report._id && (
+                    <tr>
+                      <td colSpan={5} className="border p-4 bg-gray-50">
+                        {/* Broken Links Section */}
+                       {/* Broken Links Section */}
+<div className="mb-4">
+  <h3 className="font-bold mb-2 text-lg">Broken Links</h3>
+  {report.brokenLinks.length === 0 ? (
+    <p>No broken links found.</p>
+  ) : (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border p-2 text-left">URL</th>
+            <th className="border p-2 text-center">Status</th>
+            <th className="border p-2 text-left">Text</th>
+            <th className="border p-2 text-left">Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          {report.brokenLinks.map((link, index) => (
+            <tr key={index} className="hover:bg-gray-50">
+              <td className="border p-2 text-left max-w-xs truncate">
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline"
+                >
+                  {link.url}
+                </a>
+              </td>
+              <td className="border p-2 text-center">{link.status}</td>
+              <td className="border p-2 text-left">
+                {link.text || <span className="text-gray-400">No text</span>}
+              </td>
+              <td className="border p-2 text-left max-w-xs truncate">
+                <a
+                  href={link.source}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline"
+                >
+                  {link.source}
+                </a>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</div>
+
+
+                        {/* Checked URLs Section */}
+                        <div>
+                          <h3 className="font-bold mb-2 text-lg">Checked URLs</h3>
+                          {report.checkedUrls.length === 0 ? (
+                            <p>No URLs were checked.</p>
+                          ) : (
+                            <ul className="list-disc list-inside space-y-1">
+                              {report.checkedUrls.map((url, index) => (
+                                <li key={index} className="break-words">
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary underline"
+                                  >
+                                    {url}
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-
-      {/* Checked URLs Section */}
-      <div>
-        <h3 className="font-bold mb-2 text-lg">Checked URLs</h3>
-        {report.checkedUrls.length === 0 ? (
-          <p>No URLs were checked.</p>
-        ) : (
-          <ul className="list-disc list-inside space-y-1">
-            {report.checkedUrls.map((url, index) => (
-              <li key={index}>
-                <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary">
-                  {url}
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </td>
-  </tr>
-)}
-
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
+        </div>
       )}
     </div>
   );

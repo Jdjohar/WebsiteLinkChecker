@@ -30,6 +30,7 @@ export default function Dashboard() {
   const [plan, setPlan] = useState('free');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+   const [showAll, setShowAll] = useState(false);
   const { session_id } = router.query;
 
   useEffect(() => {
@@ -236,8 +237,41 @@ export default function Dashboard() {
         </div>
 
 
-        <h2 className="text-xl font-bold mt-8 mb-4">Recent Reports</h2>
-        <ReportTable reports={reports} domains={domains} />
+      <h2 className="text-xl font-bold mt-8 mb-4">Recent Reports</h2>
+
+{reports.length === 0 ? (
+  <p className="text-gray-600">No reports available yet.</p>
+) : (
+  (() => {
+   
+
+    // Sort newest first
+    const sortedReports = [...reports].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    // Show last 5 unless showAll = true
+    const displayedReports = showAll ? sortedReports : sortedReports.slice(0, 5);
+
+    return (
+      <div>
+        <ReportTable reports={displayedReports} domains={domains} />
+
+        {sortedReports.length > 5 && (
+          <div className="text-center mt-4">
+            <button
+              onClick={() => setShowAll(!showAll)}
+              className="bg-primary text-white px-4 py-2 rounded"
+            >
+              {showAll ? "Show Less" : "View All Scans"}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  })()
+)}
+
       </main>
     </div>
   );

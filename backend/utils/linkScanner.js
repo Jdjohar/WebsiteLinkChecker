@@ -254,15 +254,27 @@ if (response.status >= 200 && response.status < 300) {
   const $ = cheerio.load(html);
   const resourceLinks = [];
 
-  // Extract links with their text content
-  $('a[href], link[href], script[src], img[src], source[src], video[src], audio[src], iframe[src]').each((_, el) => {
-    const attr = $(el).attr('href') || $(el).attr('src');
-    if (attr) {
-      // For <a> tags, capture the text content
-      const text = $(el).is('a') ? $(el).text().trim() : '';
-      resourceLinks.push({ url: attr, text });
+// Extract links with their text content
+$('a[href], link[href], script[src], img[src], source[src], video[src], audio[src], iframe[src]').each((_, el) => {
+  const attr = $(el).attr('href') || $(el).attr('src');
+  if (!attr) return;
+
+  // ✅ Ignore unwanted <link> references (shortlink, canonical, alternate, etc.)
+  if ($(el).is('link')) {
+    const rel = ($(el).attr('rel') || '').toLowerCase();
+    if (['shortlink', 'canonical', 'alternate'].includes(rel)) {
+      return; // skip
     }
-  });
+  }
+
+  // ✅ Ignore <meta> URLs completely
+  if ($(el).is('meta')) return;
+
+  // For <a> tags, capture the text content
+  const text = $(el).is('a') ? $(el).text().trim() : '';
+  resourceLinks.push({ url: attr, text });
+});
+
   $('meta[http-equiv="refresh"]').each((_, el) => {
     const content = $(el).attr('content');
     if (content) {
@@ -281,37 +293,65 @@ if (response.status >= 200 && response.status < 300) {
     } catch (e) {}
   });
 
-  const checkPromises = resourceLinks.map(({ url: link, text }) =>
-    limit(async () => {
+ const checkPromises = resourceLinks.map(({ url: link, text }) =>
+  limit(async () => {
+    try {
       const absolute = normalizeUrl(new URL(link, url).href);
       if (!absolute || checkedUrls.has(absolute)) return;
-      if (!absolute.startsWith(base)) return;
 
       checkedUrls.add(absolute);
 
-      if (!visitedUrls.has(absolute) && (absolute.endsWith('/') || absolute.match(/\.(html|php)$/))) {
+      // Tag as internal or external
+      const isInternal = absolute.startsWith(base);
+
+      // Add to crawl queue only if internal & looks like an HTML page
+      if (
+        isInternal &&
+        !visitedUrls.has(absolute) &&
+        (absolute.endsWith('/') || absolute.match(/\.(html|php)$/))
+      ) {
         toVisit.push({ url: absolute, depth: depth + 1 });
         console.log(`➡️ Added to crawl queue: ${absolute}`);
       }
 
+      // Try checking status up to 3 times
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           console.log(`🔗 Checking resource ${absolute} (attempt ${attempt})`);
           const res = await axiosInstance.get(absolute, { validateStatus: null });
+
           if (!statusMap.has(absolute)) {
-            statusMap.set(absolute, { url: absolute, status: res.status, source: url, text });
-            console.log(`ℹ️ Status for ${absolute}: ${res.status}, Text: ${text}`);
+            statusMap.set(absolute, {
+              url: absolute,
+              status: res.status,
+              source: url,
+              text,
+              type: isInternal ? "internal" : "external"
+            });
+            console.log(
+              `ℹ️ Status for ${absolute}: ${res.status}, Type: ${isInternal ? "internal" : "external"}, Text: ${text}`
+            );
           }
           break;
         } catch (error) {
           if (attempt === 3) {
-            statusMap.set(absolute, { url: absolute, status: 'Failed', source: url, text });
+            statusMap.set(absolute, {
+              url: absolute,
+              status: 'Failed',
+              source: url,
+              text,
+              type: isInternal ? "internal" : "external"
+            });
             console.error(`❌ Failed to check ${absolute}: ${error.message}`);
           }
         }
       }
-    })
-  );
+    } catch (err) {
+      console.error(`⚠️ Skipped invalid URL: ${link}, source: ${url}`);
+    }
+  })
+);
+
 
   await Promise.allSettled(checkPromises);
 }
