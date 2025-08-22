@@ -11,8 +11,11 @@ const limit = pLimit(10);
 const MAX_URLS = 5000;
 
 const axiosInstance = axios.create({
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
+ headers: {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9'
   },
   timeout: 15000,
   maxRedirects: 5,
@@ -172,11 +175,14 @@ async function scanLinks(startUrl, schedule, options = {}) {
   const { maxDepth = Infinity, maxUrls = MAX_URLS, blogPageUrl } = options;
   console.log(`🔍 Starting scan for ${startUrl}, schedule: ${schedule}, maxDepth: ${maxDepth}`);
 
+  const base = new URL(startUrl).origin;
+
+  axiosInstance.defaults.headers['Referer'] = base;
+
   const toVisit = [{ url: normalizeUrl(startUrl), depth: 0 }];
   const statusMap = new Map();
   const checkedUrls = new Set();
   const visitedUrls = new Set();
-  const base = new URL(startUrl).origin;
   const robots = await fetchRobotsTxt(base);
 
   // Fetch sitemap URLs
@@ -318,7 +324,10 @@ $('a[href], link[href], script[src], img[src], source[src], video[src], audio[sr
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
           console.log(`🔗 Checking resource ${absolute} (attempt ${attempt})`);
-          const res = await axiosInstance.get(absolute, { validateStatus: null });
+          const res = await axiosInstance.get(absolute, { 
+            validateStatus: null ,
+            headers: { Referer: url } 
+          });
 
           if (!statusMap.has(absolute)) {
             statusMap.set(absolute, {

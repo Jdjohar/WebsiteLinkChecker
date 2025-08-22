@@ -70,56 +70,57 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
                     <tr>
                       <td colSpan={5} className="border p-4 bg-gray-50">
                         {/* Broken Links Section */}
-                       {/* Broken Links Section */}
-<div className="mb-4">
-  <h3 className="font-bold mb-2 text-lg">Broken Links</h3>
-  {report.brokenLinks.length === 0 ? (
-    <p>No broken links found.</p>
-  ) : (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-2 text-left">URL</th>
-            <th className="border p-2 text-center">Status</th>
-            <th className="border p-2 text-left">Text</th>
-            <th className="border p-2 text-left">Source</th>
-          </tr>
-        </thead>
-        <tbody>
-          {report.brokenLinks.map((link, index) => (
-            <tr key={index} className="hover:bg-gray-50">
-              <td className="border p-2 text-left max-w-xs truncate">
-                <a
-                  href={link.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline"
-                >
-                  {link.url}
-                </a>
-              </td>
-              <td className="border p-2 text-center">{link.status}</td>
-              <td className="border p-2 text-left">
-                {link.text || <span className="text-gray-400">No text</span>}
-              </td>
-              <td className="border p-2 text-left max-w-xs truncate">
-                <a
-                  href={link.source}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline"
-                >
-                  {link.source}
-                </a>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )}
-</div>
+                        <div className="mb-4">
+                          <h3 className="font-bold mb-2 text-lg">Broken Links</h3>
+                          {report.brokenLinks.length === 0 ? (
+                            <p>No broken links found.</p>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full border-collapse">
+                                <thead>
+                                  <tr className="bg-gray-100">
+                                    <th className="border p-2 text-left">URL</th>
+                                    <th className="border p-2 text-center">Status</th>
+                                    <th className="border p-2 text-left">Text</th>
+                                    <th className="border p-2 text-left">Source</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {report.brokenLinks.map((link, index) => (
+                                    <tr key={index} className="hover:bg-gray-50">
+                                      <td style={{maxWidth:'200px'}} className="border p-2 text-left max-w-96 truncate">
+                                        <a
+                                          href={link.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary underline"
+                                          title={link.url} // shows full URL on hover
+                                        >
+                                          {link.url}
+                                        </a>
+                                      </td>
+                                      <td className="border p-2 text-center">{link.status}</td>
+                                      <td style={{maxWidth:'200px'}} className="border p-2 text-left">
+                                        {link.text || <span className="text-gray-400">No text</span>}
+                                      </td>
+                                      <td style={{maxWidth:'200px'}} className="border p-2 text-left max-w-xs truncate">
+                                        <a
+                                          href={link.source}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-primary underline"
+                                        >
+                                          {link.source}
+                                        </a>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+
 
 
                         {/* Checked URLs Section */}
