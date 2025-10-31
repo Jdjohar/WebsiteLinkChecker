@@ -45,12 +45,13 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
             </tr>
           </thead>
           <tbody>
+           
 
             {reports.map((report) => (
               
               <React.Fragment key={report._id}>
                 <tr>
-                  <td className="border p-2">{new Date(report.createdAt).toLocaleString()}</td>
+                  <td className="border p-2 ds">{new Date(report.createdAt).toLocaleString()}</td>
                   <td className="border p-2">{getDomainUrl(report.domainId)}</td>
                   <td className="border p-2">{report.brokenLinks.length}</td>
                   <td className="border p-2">{report.checkedUrls.length}</td>
@@ -81,23 +82,38 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
                 <th className="border p-2">Source</th>
               </tr>
             </thead>
+             {/* {console.log(typeof report.brokenLinks[9].status,'report.brokenLinks')} */}
             <tbody>
-              {report.brokenLinks.map((link, index) => (
-                <tr key={index}>
-                  <td className="border p-2">
-                    <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-primary">
-                      {link.url}
-                    </a>
-                  </td>
-                  <td className="border p-2">{link.status}</td>
-                  <td className="border p-2">{link.text}</td>
-                  <td className="border p-2">
-                    <a href={link.source} target="_blank" rel="noopener noreferrer" className="text-primary">
-                      {link.source}
-                    </a>
-                  </td>
-                </tr>
-              ))}
+              {report.brokenLinks
+              .filter(link => link.status === "404" )
+  .map((link, index) => (
+    <tr key={index}>
+      <td style={{ maxWidth: '200px' }} className="border p-2">
+        <a
+          href={link.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary"
+        >
+          {link.url}
+        </a>
+      </td>
+      <td className="border p-2">{link.status}</td>
+      <td style={{ maxWidth: '200px' }} className="border p-2">
+        {link.text}
+      </td>
+      <td style={{ maxWidth: '200px' }} className="border p-2">
+        <a
+          href={link.source}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary"
+        >
+          {link.source}
+        </a>
+      </td>
+    </tr>
+  ))}
             </tbody>
           </table>
         )}
