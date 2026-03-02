@@ -11,12 +11,12 @@ const authRoutes = require('./routes/auth');
 const domainRoutes = require('./routes/domains');
 const reportRoutes = require('./routes/reports');
 const stripeRoutes = require('./routes/stripe');
-const { startCronJobs } = require('./utils/cron');
+// const { startCronJobs } = require('./utils/cron');
 
 const app = express();
 
 // Normalize FRONTEND_URL to remove trailing slash
-const frontendUrl = process.env.FRONTEND_URL.replace(/\/$/, '');
+const frontendUrl = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
 console.log("1");
 
 // Log webhook URL
@@ -78,13 +78,26 @@ app.use('/api/reports/scan', limiter);
 console.log('Middleware - Applied rate limiting');
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
+let cached = global.mongoose;
 
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
+async function connectDB() {
+  if (cached.conn) return cached.conn;
+
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(process.env.MONGO_URI);
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
+}
+
+connectDB()
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error(err));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/domains', domainRoutes);
@@ -94,20 +107,21 @@ console.log('Middleware - Mounted API routes');
 
 // Health Check
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', message: 'Server running' });
+  res.status(200).json({ status: 'OK' });
 });
 
-// Error Handling
+// Error handler
 app.use((err, req, res, next) => {
-  console.error('Error middleware:', err.stack);
+  console.error(err);
   res.status(500).json({ message: 'Internal server error' });
 });
+
 
 console.log('Console log print');
 
 
 // Start Cron Jobs
-startCronJobs();
+// startCronJobs();
 
 console.log('Console log print 2');
 
@@ -116,3 +130,4 @@ console.log('Console log print 2');
 // app.listen(port, () => {
 //   console.log(`Server running on port ${port}`);
 // });
+module.exports = app;
