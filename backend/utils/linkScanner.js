@@ -1,379 +1,589 @@
+/* utils/linkScanner.js */
 const axios = require('axios');
 const cheerio = require('cheerio');
 const robotsParser = require('robots-parser');
 const pLimit = require('p-limit').default;
 const { URL } = require('url');
 const { XMLParser } = require('fast-xml-parser');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer'); // optional for dynamic/challenged pages
 const fs = require('fs').promises;
 
-const limit = pLimit(10);
-const MAX_URLS = 5000;
+const limit = pLimit(18);
+const MAX_URLS = 15000;
 
+// Allow walking off-domain (external links)
+const CRAWL_EXTERNAL = false;
+
+// 🚩 Toggle to ignore robots.txt entirely
+const IGNORE_ROBOTS = true;
+
+// ---- Axios instance tuned to look like a real browser ----
 const axiosInstance = axios.create({
- headers: {
+  headers: {
     'User-Agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9'
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept':
+      'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
+    'Upgrade-Insecure-Requests': '1',
   },
-  timeout: 15000,
+  // Give the challenge page time to finish
+  timeout: 45000,
   maxRedirects: 5,
+  validateStatus: () => true, // we will handle non-2xx ourselves
 });
 
-function normalizeUrl(url) {
+// ---- Helpers ----
+const JUNK_PROTOCOLS = [
+  'javascript:',
+  'data:',
+  'mailto:',
+  'tel:',
+  'sms:',
+  'whatsapp:',
+  'skype:',
+];
+
+function isJunkHref(href) {
+  if (!href) return true;
+  const h = href.trim().toLowerCase();
+  if (h === '#' || h === '##' || h === '/' || h.startsWith('#')) return true;
+  return JUNK_PROTOCOLS.some((p) => h.startsWith(p));
+}
+
+function looksLikeBotChallenge(html) {
+  const t = (html || '').toLowerCase();
+  return (
+    t.includes('checking your browser') ||
+    t.includes('just a moment') ||
+    t.includes('attention required') ||
+    t.includes('cloudflare') ||
+    t.includes('sucuri')
+  );
+}
+
+function normalizeUrl(u) {
   try {
-    const normalized = new URL(url);
-    normalized.hash = '';
-    return normalized.href;
-  } catch (error) {
-    console.error(`❌ normalizeUrl failed for ${url}: ${error.message}`);
+    const out = new URL(u);
+    // normalize default ports
+    if (
+      (out.protocol === 'http:' && out.port === '80') ||
+      (out.protocol === 'https:' && out.port === '443')
+    ) {
+      out.port = '';
+    }
+    // strip hash
+    out.hash = '';
+    // ensure trailing slash consistency
+    if (!out.pathname) out.pathname = '/';
+    return out.toString();
+  } catch {
     return null;
   }
 }
 
-async function fetchRobotsTxt(baseUrl) {
+function sameSite(base, url) {
   try {
-    const robotsUrl = new URL('/robots.txt', baseUrl).href;
-    const res = await axiosInstance.get(robotsUrl);
-    console.log(`🤖 Fetched robots.txt for ${baseUrl}`);
-    return robotsParser(robotsUrl, res.data);
-  } catch (error) {
-    console.warn(`⚠️ Failed to fetch robots.txt for ${baseUrl}: ${error.message}`);
-    return robotsParser('', 'User-agent: *\nAllow: /');
+    const a = new URL(base);
+    const b = new URL(url);
+    return a.hostname === b.hostname; // allow http<->https within same host
+  } catch {
+    return false;
   }
 }
 
-async function fetchSitemap(sitemapUrl, baseUrl) {
-  try {
-    const response = await axiosInstance.get(sitemapUrl, { timeout: 15000 });
-    const parser = new XMLParser();
-    const parsed = parser.parse(response.data);
-    const urls = [];
+function isHttpUrl(url) {
+  return /^https?:\/\//i.test(url);
+}
 
-    if (parsed.sitemapindex?.sitemap) {
-      const sitemaps = Array.isArray(parsed.sitemapindex.sitemap)
-        ? parsed.sitemapindex.sitemap
-        : [parsed.sitemapindex.sitemap];
-      for (const sitemap of sitemaps) {
-        if (sitemap.loc) {
-          const subSitemapUrls = await fetchSitemap(sitemap.loc, baseUrl);
-          urls.push(...subSitemapUrls);
+// ---- Robots.txt with allow-all fallback (or disabled entirely) ----
+async function fetchRobotsTxt(baseUrl) {
+  if (IGNORE_ROBOTS) {
+    // Always allow everything when ignoring robots
+    return robotsParser('', 'User-agent: *\nDisallow:');
+  }
+  const robotsUrl = new URL('/robots.txt', baseUrl).href;
+  try {
+    const res = await axiosInstance.get(robotsUrl);
+    const body = typeof res.data === 'string' ? res.data : '';
+    const looksHtml = /<html|<head|<body/i.test(body);
+
+    if (res.status >= 400 || looksHtml || looksLikeBotChallenge(body)) {
+      return robotsParser('', 'User-agent: *\nDisallow:');
+    }
+    return robotsParser(robotsUrl, body);
+  } catch {
+    return robotsParser('', 'User-agent: *\nDisallow:');
+  }
+}
+
+// ---- Sitemap discovery (handles sitemap indexes) ----
+async function fetchSitemapUrls(baseUrl) {
+  const candidates = [
+    '/sitemap.xml',
+    '/sitemap.xml.gz',
+    '/sitemap_index.xml',
+    '/sitemap_index.xml.gz',
+    '/sitemap-index.xml',
+    '/sitemap-index.xml.gz',
+    '/sitemap1.xml',
+  ].map((p) => new URL(p, baseUrl).href);
+
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '',
+    allowBooleanAttributes: true,
+  });
+
+  const seen = new Set();
+  const out = new Set();
+
+  async function fetchAndParse(sitemapUrl) {
+    if (seen.has(sitemapUrl)) return;
+    seen.add(sitemapUrl);
+    try {
+      const isGz = sitemapUrl.endsWith('.gz');
+      const res = await axiosInstance.get(sitemapUrl, { responseType: isGz ? 'arraybuffer' : 'text' });
+      if (res.status >= 400) return;
+
+      let body = typeof res.data === 'string' ? res.data : '';
+      if (isGz) {
+        try {
+          const buf = Buffer.from(res.data);
+          body = require('zlib').gunzipSync(buf).toString('utf-8');
+        } catch {}
+      }
+      if (!body || looksLikeBotChallenge(body)) return;
+
+      const xml = parser.parse(body);
+
+      // <urlset><url><loc>...</loc></url>...
+      if (xml && xml.urlset) {
+        const urls = Array.isArray(xml.urlset.url)
+          ? xml.urlset.url
+          : xml.urlset.url
+          ? [xml.urlset.url]
+          : [];
+        for (const u of urls) {
+          if (u && u.loc && isHttpUrl(u.loc)) {
+            const nu = normalizeUrl(new URL(u.loc, baseUrl).href);
+            if (nu && sameSite(baseUrl, nu)) out.add(nu);
+          }
         }
       }
+
+      // <sitemapindex><sitemap><loc>...</loc></sitemap>...
+      if (xml && xml.sitemapindex) {
+        const maps = Array.isArray(xml.sitemapindex.sitemap)
+          ? xml.sitemapindex.sitemap
+          : xml.sitemapindex.sitemap
+          ? [xml.sitemapindex.sitemap]
+          : [];
+        for (const sm of maps) {
+          if (sm && sm.loc && isHttpUrl(sm.loc)) {
+            await fetchAndParse(new URL(sm.loc, baseUrl).href);
+          }
+        }
+      }
+    } catch {
+      // ignore individual failures
     }
-    if (parsed.urlset?.url) {
-      const sitemapUrls = Array.isArray(parsed.urlset.url)
-        ? parsed.urlset.url
-        : [parsed.urlset.url];
-      urls.push(...sitemapUrls.map(u => u.loc).filter(u => normalizeUrl(u)));
-    }
-    return urls.slice(0, MAX_URLS);
-  } catch (error) {
-    console.error(`❌ Error fetching sitemap ${sitemapUrl}: ${error.message}`);
-    return [];
   }
+
+  for (const c of candidates) {
+    try {
+      await fetchAndParse(c);
+    } catch {}
+  }
+
+  return [...out].slice(0, MAX_URLS);
 }
 
+// ---- Puppeteer for dynamic blog pages (no request interception) ----
 async function fetchBlogLinksWithPuppeteer(blogUrl, base) {
   let browser;
   try {
-    browser = await puppeteer.launch({ headless: false }); // Non-headless for debugging
-    const page = await browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36');
-    await page.goto(blogUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-
-    // Monitor AJAX requests
-    await page.setRequestInterception(true);
-    page.on('request', request => {
-      if (request.url().includes('wp-json') || request.url().includes('ajax')) {
-        console.log(`🌐 AJAX request: ${request.url()}`);
-      }
-      request.continue();
+    browser = await puppeteer.launch({
+      headless: 'shell', // set to false to debug locally
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-features=IsolateOrigins,site-per-process',
+      ],
+      protocolTimeout: 180000,
+      defaultViewport: { width: 1366, height: 768 },
     });
 
-    const links = new Set();
-    let previousBlogCount = 0;
-    let attemptCount = 0;
-    const maxAttempts = 15; // Covers ~11 clicks for 64 blogs
+    const page = await browser.newPage();
+    await page.setExtraHTTPHeaders({ 'accept-language': 'en-US,en;q=0.9' });
+    await page.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    );
 
-    // Initial screenshot
-    await page.screenshot({ path: `blog_initial_${Date.now()}.png` });
-    console.log(`📸 Initial screenshot saved`);
+    await page.goto(blogUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForSelector('a[href]', { timeout: 15000 });
 
-    while (attemptCount < maxAttempts) {
-      // Extract blog links
-      const blogElements = await page.$$eval(
-        'article, .post, .blog-post, .blog-item, .entry, .post-item, .wp-block-post',
-        elements => elements.map(el => {
-          const link = el.querySelector('a[href]');
-          return link ? link.getAttribute('href') : null;
-        }).filter(href => href)
-      );
+    const links = await page.$$eval('a[href]', (as) =>
+      as.map((a) => a.getAttribute('href')).filter(Boolean)
+    );
 
-      blogElements.forEach(link => {
-        const absolute = normalizeUrl(new URL(link, blogUrl).href);
-        if (absolute && absolute.startsWith(base)) links.add(absolute);
-      });
+    const cleaned = links
+      .filter((href) => !/^#|javascript:|data:|mailto:|tel:/i.test(href))
+      .map((href) => new URL(href, blogUrl).href)
+      .filter((abs) => /^https?:/i.test(abs) && abs.startsWith(base));
 
-      const currentBlogCount = links.size;
-      console.log(`📄 Attempt ${attemptCount + 1}: Found ${currentBlogCount} blog links`);
-
-      // Stop if no new blogs
-      if (currentBlogCount === previousBlogCount && attemptCount > 0) {
-        console.log(`ℹ️ No new blogs loaded on ${blogUrl}. Stopping.`);
-        break;
-      }
-      previousBlogCount = currentBlogCount;
-
-      // Find "Load More" button
-      const loadMoreButton = await page.$('#loadMore, .btn.btn-primary.mt-4');
-      if (loadMoreButton) {
-        console.log(`🔍 Load More button found on ${blogUrl}`);
-        const buttonHtml = await page.evaluate(el => el.outerHTML, loadMoreButton);
-        console.log(`ℹ️ Button HTML: ${buttonHtml}`);
-
-        // Screenshot before click
-        await page.screenshot({ path: `blog_before_click_${attemptCount}_${Date.now()}.png` });
-
-        // Simulate click with scroll and dispatch
-        await page.evaluate(el => {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.click();
-        }, loadMoreButton);
-        console.log(`🔄 Clicked Load More button (attempt ${attemptCount + 1})`);
-
-        // Wait for content
-        await page.waitForTimeout(5000); // Increased for animations
-        await page.waitForNetworkIdle({ timeout: 30000 }).catch(() => {
-          console.log(`ℹ️ No more network activity after clicking Load More`);
-        });
-
-        // Screenshot after click
-        await page.screenshot({ path: `blog_after_click_${attemptCount}_${Date.now()}.png` });
-        console.log(`📸 Screenshot saved after click ${attemptCount + 1}`);
-
-        attemptCount++;
-      } else {
-        console.log(`❌ No Load More button found on ${blogUrl}`);
-        break;
-      }
-    }
-
-    console.log(`📄 Final: Found ${links.size} blog links on ${blogUrl}`);
-    return Array.from(links);
-  } catch (error) {
-    console.error(`❌ Puppeteer failed for ${blogUrl}: ${error.message}`);
+    return [...new Set(cleaned)];
+  } catch {
     return [];
   } finally {
     if (browser) await browser.close();
   }
 }
 
-async function scanLinks(startUrl, schedule, options = {}) {
-  startUrl = startUrl.replace(/^http:/, 'https:');
-  const { maxDepth = Infinity, maxUrls = MAX_URLS, blogPageUrl } = options;
-  console.log(`🔍 Starting scan for ${startUrl}, schedule: ${schedule}, maxDepth: ${maxDepth}`);
+// ---- NEW: Generic Puppeteer fallback for any page under challenge ----
+async function fetchPageLinksWithPuppeteer(url, base) {
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: 'shell',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-features=IsolateOrigins,site-per-process',
+      ],
+      protocolTimeout: 180000,
+      defaultViewport: { width: 1366, height: 768 },
+    });
+    const page = await browser.newPage();
+    await page.setExtraHTTPHeaders({ 'accept-language': 'en-US,en;q=0.9' });
+    await page.setUserAgent(
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    );
+    // let the JS challenge complete
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+    try { await page.waitForSelector('a[href]', { timeout: 20000 }); } catch {}
+    const links = await page.$$eval('a[href]', (as) =>
+      as.map(a => a.getAttribute('href')).filter(Boolean)
+    );
+    const cleaned = links
+      .filter(href => !/^#|javascript:|data:|mailto:|tel:/i.test(href))
+      .map(href => new URL(href, url).href)
+      .filter(abs => /^https?:/i.test(abs) && abs.startsWith(base));
+    return [...new Set(cleaned)];
+  } catch {
+    return [];
+  } finally {
+    if (browser) await browser.close();
+  }
+}
+
+// ---- Core scan ----
+async function scanLinks(startUrl, schedule = 'daily', opts = {}) {
+  // Support legacy numeric 3rd arg
+  let maxDepth;
+  if (typeof opts === 'number') {
+    maxDepth = opts;
+    opts = {};
+  } else {
+    maxDepth =
+      Number.isFinite(opts.maxDepth) || opts.maxDepth === Infinity
+        ? opts.maxDepth
+        : Infinity;
+  }
+  const blogPageUrl = opts.blogPageUrl;
 
   const base = new URL(startUrl).origin;
+  // Always define robots safely
+  const robots = IGNORE_ROBOTS ? { isAllowed: () => true } : await fetchRobotsTxt(base);
 
-  axiosInstance.defaults.headers['Referer'] = base;
+  console.log(
+    `🔍 Starting scan for ${startUrl}, schedule: ${schedule}, maxDepth: ${maxDepth}`
+  );
 
-  const toVisit = [{ url: normalizeUrl(startUrl), depth: 0 }];
-  const statusMap = new Map();
+  const visited = new Set();
+  const queued = [];
   const checkedUrls = new Set();
-  const visitedUrls = new Set();
-  const robots = await fetchRobotsTxt(base);
+  const statusMap = new Map(); // url -> { url, status, source, text, type }
+  const brokenLinksMap = new Map(); // url -> { url, source, text, type, status }
 
-  // Fetch sitemap URLs
-  const sitemapUrls = [
-    `${base}/sitemap.xml`,
-    `${base}/sitemap_index.xml`,
-  ];
-  let sitemapLinks = [];
-  for (const sitemapUrl of sitemapUrls) {
-    sitemapLinks = await fetchSitemap(sitemapUrl, base);
-    if (sitemapLinks.length > 0) {
-      console.log(`📄 Found ${sitemapLinks.length} URLs in sitemap for ${startUrl}`);
-      sitemapLinks.forEach(url => {
-        const normalized = normalizeUrl(url);
-        if (normalized && !visitedUrls.has(normalized)) {
-          toVisit.push({ url: normalized, depth: 0 });
-        }
-      });
-      break;
-    }
+  function enqueue(url, source = startUrl, depth = 0) {
+    const n = normalizeUrl(url);
+    if (!n || visited.has(n)) return;
+    if (!sameSite(base, n)) return;
+    if (!/^https?:/i.test(n)) return;
+    if (queued.length + visited.size >= MAX_URLS) return;
+    queued.push({ url: n, source, depth });
   }
 
-  // Handle blog page
-  let finalBlogPageUrl = blogPageUrl;
-  let blogLinks = [];
+  // Seed with sitemap URLs first (works even when HTML fetch is challenged)
+  try {
+    const sitemapUrls = await fetchSitemapUrls(startUrl);
+    if (sitemapUrls.length) {
+      console.log(`🗺️  Found ${sitemapUrls.length} URLs via sitemap`);
+      for (const u of sitemapUrls) enqueue(u, startUrl, 1);
+    }
+  } catch {}
 
+  // Always include the start URL
+  enqueue(startUrl, startUrl, 0);
+
+  // Blog candidates (include provided blogPageUrl if present)
+  const blogCandidates = [
+    new URL('/blogs/', base).href,
+    new URL('/blog/', base).href,
+    new URL('/news/', base).href,
+    new URL('/insights/', base).href,
+    new URL('/resources/', base).href,
+    new URL('/articles/', base).href,
+  ];
   if (blogPageUrl) {
     try {
-      console.log(`📖 Trying blog page: ${blogPageUrl}`);
-      await axiosInstance.head(blogPageUrl);
-    } catch (err) {
-      finalBlogPageUrl = `${base}/blogs/`;
-      console.warn(`⚠️ ${blogPageUrl} failed: ${err.message}. Trying fallback: ${finalBlogPageUrl}`);
-      try {
-        await axiosInstance.head(finalBlogPageUrl);
-      } catch (fallbackErr) {
-        console.error(`❌ Both /blog/ and /blogs/ failed: ${fallbackErr.message}. Skipping blog scan.`);
-        finalBlogPageUrl = null;
-      }
-    }
-
-    if (finalBlogPageUrl) {
-      console.log(`📖 Scanning blog page: ${finalBlogPageUrl}`);
-      blogLinks = await fetchBlogLinksWithPuppeteer(finalBlogPageUrl, base);
-      blogLinks.forEach(link => {
-        const normalized = normalizeUrl(link);
-        if (normalized && !visitedUrls.has(normalized)) {
-          toVisit.push({ url: normalized, depth: 0 });
-        }
-      });
-    }
+      const normalized = new URL(blogPageUrl, base).href;
+      blogCandidates.unshift(normalized);
+    } catch {}
   }
 
-  // Start crawling
-  while (toVisit.length > 0 && checkedUrls.size < maxUrls) {
-    const { url, depth } = toVisit.shift();
-    if (!url || visitedUrls.has(url) || (maxDepth !== Infinity && depth > maxDepth)) {
-      console.log(`⏭️ Skipping ${url}: ${!url ? 'invalid' : visitedUrls.has(url) ? 'visited' : 'max depth'}`);
-      continue;
-    }
-    if (!robots.isAllowed(url, '*')) {
-      console.warn(`🚫 ${url} blocked by robots.txt`);
-      continue;
-    }
-    visitedUrls.add(url);
+  // Crawl loop
+  while (queued.length && visited.size < MAX_URLS) {
+    const batch = queued.splice(0, 10);
+    await Promise.all(
+      batch.map(({ url, source, depth }) =>
+        limit(async () => {
+          if (visited.has(url)) return;
+          visited.add(url);
 
-    try {
-      console.log(`🌐 Fetching ${url}`);
-      const response = await axiosInstance.get(url, { validateStatus: null });
-      statusMap.set(url, { url, status: response.status, source: startUrl });
+          // Respect robots when readable (disabled when IGNORE_ROBOTS)
+          if (!IGNORE_ROBOTS && robots && robots.isAllowed && robots.isAllowed(url, '*') === false) {
+            statusMap.set(url, {
+              url,
+              status: 401,
+              source,
+              text: 'Disallowed by robots.txt',
+              type: 'internal',
+            });
+            return;
+          }
 
- // Inside the scanLinks function, replace the resourceLinks extraction block
-if (response.status >= 200 && response.status < 300) {
-  const html = response.data;
-  const $ = cheerio.load(html);
-  const resourceLinks = [];
+          // Fetch page
+          let res;
+          try {
+            res = await axiosInstance.get(url);
+          } catch (err) {
+            statusMap.set(url, {
+              url,
+              status: 'FetchError',
+              source,
+              text: err.message || '',
+              type: 'internal',
+            });
+            return;
+          }
 
-// Extract links with their text content
-$('a[href], link[href], script[src], img[src], source[src], video[src], audio[src], iframe[src]').each((_, el) => {
-  const attr = $(el).attr('href') || $(el).attr('src');
-  if (!attr) return;
+          const status = res.status;
+          const html = typeof res.data === 'string' ? res.data : '';
+          checkedUrls.add(url);
 
-  // ✅ Ignore unwanted <link> references (shortlink, canonical, alternate, etc.)
-  if ($(el).is('link')) {
-    const rel = ($(el).attr('rel') || '').toLowerCase();
-    if (['shortlink', 'canonical', 'alternate'].includes(rel)) {
-      return; // skip
-    }
-  }
+          // If blocked or under challenge, try Puppeteer fallback before bailing
+          if (status === 202) {
+            // WAF / bot-check; try Puppeteer first and only mark broken if that fails
+            try {
+              const plinks = await fetchPageLinksWithPuppeteer(url, base);
+              for (const pl of plinks) enqueue(pl, url, depth + 1);
+              statusMap.set(url, { url, status: 'puppeteer-fallback', source, text: '', type: 'internal' });
+              return; // don't mark as broken yet
+            } catch {
+              brokenLinksMap.set(url, {
+                url,
+                source,
+                text: '',
+                type: sameSite(base, url) ? 'internal' : 'external',
+                status,
+              });
+              statusMap.set(url, { url, status, source, text: '', type: 'internal' });
+              return;
+            }
+          }
 
-  // ✅ Ignore <meta> URLs completely
-  if ($(el).is('meta')) return;
+          if (status >= 400) {
+            // Real HTTP error; mark broken, but still try a browser pass for discovery
+            brokenLinksMap.set(url, {
+              url,
+              source,
+              text: '',
+              type: sameSite(base, url) ? 'internal' : 'external',
+              status,
+            });
+            statusMap.set(url, { url, status, source, text: '', type: 'internal' });
+            try {
+              const plinks = await fetchPageLinksWithPuppeteer(url, base);
+              for (const pl of plinks) enqueue(pl, url, depth + 1);
+            } catch {}
+            return;
+          }
 
-  // For <a> tags, capture the text content
-  const text = $(el).is('a') ? $(el).text().trim() : '';
-  resourceLinks.push({ url: attr, text });
-});
+          if (looksLikeBotChallenge(html)) {
+            statusMap.set(url, {
+              url,
+              status: 'blocked-by-bot-protection',
+              source,
+              text: '',
+              type: sameSite(base, url) ? 'internal' : 'external',
+            });
+            // 🔁 Also try Puppeteer to continue discovery
+            try {
+              const plinks = await fetchPageLinksWithPuppeteer(url, base);
+              for (const pl of plinks) enqueue(pl, url, depth + 1);
+            } catch {}
+            return; // do not parse challenge HTML with Cheerio
+          }
 
-  $('meta[http-equiv="refresh"]').each((_, el) => {
-    const content = $(el).attr('content');
-    if (content) {
-      const match = content.match(/url=(.+)/i);
-      if (match) resourceLinks.push({ url: match[1], text: '' });
-    }
-  });
-  $('script[type="application/ld+json"]').each((_, el) => {
-    try {
-      const json = JSON.parse($(el).html());
-      const extractUrls = (obj) => {
-        if (typeof obj === 'string' && obj.startsWith('http')) resourceLinks.push({ url: obj, text: '' });
-        if (typeof obj === 'object') Object.values(obj).forEach(extractUrls);
-      };
-      extractUrls(json);
-    } catch (e) {}
-  });
+          // ✅ Record successful fetch before parsing
+          statusMap.set(url, { url, status, source, text: '', type: 'internal' });
 
- const checkPromises = resourceLinks.map(({ url: link, text }) =>
-  limit(async () => {
-    try {
-      const absolute = normalizeUrl(new URL(link, url).href);
-      if (!absolute || checkedUrls.has(absolute)) return;
+          // Proactive discovery with a real browser (for JS-rendered nav)
+          try {
+            const plinks = await fetchPageLinksWithPuppeteer(url, base);
+            for (const pl of plinks) enqueue(pl, url, depth + 1);
+          } catch {}
 
-      checkedUrls.add(absolute);
+          // Parse links
+          let $;
+          try {
+            $ = cheerio.load(html);
+          } catch {
+            return;
+          }
 
-      // Tag as internal or external
-      const isInternal = absolute.startsWith(base);
+          const resourceLinks = [];
+          $(
+            'a[href], link[href], script[src], img[src], source[src], video[src], audio[src], iframe[src]'
+          ).each((_, el) => {
+            const attr = $(el).attr('href') || $(el).attr('src');
+            if (!attr) return;
 
-      // Add to crawl queue only if internal & looks like an HTML page
-      if (
-        isInternal &&
-        !visitedUrls.has(absolute) &&
-        (absolute.endsWith('/') || absolute.match(/\.(html|php)$/))
-      ) {
-        toVisit.push({ url: absolute, depth: depth + 1 });
-        console.log(`➡️ Added to crawl queue: ${absolute}`);
-      }
+            // Skip junk/placeholder links
+            if (isJunkHref(attr)) return;
 
-      // Try checking status up to 3 times
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          console.log(`🔗 Checking resource ${absolute} (attempt ${attempt})`);
-          const res = await axiosInstance.get(absolute, { 
-            validateStatus: null ,
-            headers: { Referer: url } 
+            // Skip some <link rel=...> noise
+            if ($(el).is('link')) {
+              const rel = (($(el).attr('rel') || '') + '').toLowerCase();
+              if (['shortlink', 'canonical', 'alternate'].includes(rel)) return;
+            }
+
+            const text = $(el).is('a') ? (($(el).text() || '').trim()) : '';
+            resourceLinks.push({ url: attr, text });
           });
 
-          if (!statusMap.has(absolute)) {
-            statusMap.set(absolute, {
-              url: absolute,
-              status: res.status,
-              source: url,
-              text,
-              type: isInternal ? "internal" : "external"
-            });
-            console.log(
-              `ℹ️ Status for ${absolute}: ${res.status}, Type: ${isInternal ? "internal" : "external"}, Text: ${text}`
-            );
+          // Check resources and enqueue internal pages
+          for (const { url: href, text } of resourceLinks) {
+            let abs;
+            try {
+              abs = new URL(href, url).href;
+            } catch {
+              continue;
+            }
+
+            const absNorm = normalizeUrl(abs);
+            if (!absNorm || !isHttpUrl(absNorm)) continue;
+
+            const type = sameSite(base, absNorm) ? 'internal' : 'external';
+
+            // Enqueue internal pages for crawling (respect depth)
+            if (type === 'internal' && depth + 1 <= maxDepth) {
+              enqueue(absNorm, url, depth + 1);
+            }
+
+            // Record queued status; later we actively check these
+            if (!statusMap.has(absNorm)) {
+              statusMap.set(absNorm, {
+                url: absNorm,
+                status: 'Queued',
+                source: url,
+                text,
+                type,
+              });
+            }
           }
-          break;
-        } catch (error) {
-          if (attempt === 3) {
-            statusMap.set(absolute, {
-              url: absolute,
-              status: 'Failed',
-              source: url,
-              text,
-              type: isInternal ? "internal" : "external"
-            });
-            console.error(`❌ Failed to check ${absolute}: ${error.message}`);
-          }
-        }
+        })
+      )
+    );
+  }
+
+  // Optional: try to pull from blog candidates using Puppeteer once
+  for (const blog of blogCandidates) {
+    try {
+      if (!sameSite(base, blog)) continue;
+      const blogLinks = await fetchBlogLinksWithPuppeteer(blog, base);
+      for (const bl of blogLinks) {
+        enqueue(bl, blog, 1);
       }
-    } catch (err) {
-      console.error(`⚠️ Skipped invalid URL: ${link}, source: ${url}`);
-    }
-  })
-);
+    } catch {}
+  }
 
+  // Actively check resources that were marked "Queued"
+  const allToCheck = Array.from(statusMap.values()).filter(
+    (s) => s.status === 'Queued'
+  );
 
-  await Promise.allSettled(checkPromises);
-}
-    } catch (err) {
-      statusMap.set(url, { url, status: 'Failed', source: startUrl });
-      console.error(`❌ Failed to fetch ${url}: ${err.message}`);
-    }
+  await Promise.all(
+    allToCheck.map((item) =>
+      limit(async () => {
+        try {
+          const res = await axiosInstance.get(item.url);
+          const status = res.status;
+          if (status >= 400) {
+            brokenLinksMap.set(item.url, {
+              url: item.url,
+              source: item.source,
+              text: item.text || '',
+              type: item.type,
+              status,
+            });
+            statusMap.set(item.url, { ...item, status });
+          } else {
+            const html = typeof res.data === 'string' ? res.data : '';
+            if (looksLikeBotChallenge(html)) {
+              statusMap.set(item.url, {
+                ...item,
+                status: 'blocked-by-bot-protection',
+              });
+            } else {
+              statusMap.set(item.url, { ...item, status });
+            }
+          }
+          checkedUrls.add(item.url);
+        } catch (err) {
+          brokenLinksMap.set(item.url, {
+            url: item.url,
+            source: item.source,
+            text: item.text || '',
+            type: item.type,
+            status: 'Failed',
+          });
+          statusMap.set(item.url, { ...item, status: 'Failed' });
+          checkedUrls.add(item.url);
+        }
+      })
+    )
+  );
+
+  // Ensure homepage has a status entry
+  if (!statusMap.has(startUrl)) {
+    statusMap.set(startUrl, {
+      url: startUrl,
+      status: 'unknown',
+      source: startUrl,
+      text: '',
+      type: 'internal',
+    });
   }
 
   const result = {
-    brokenLinks: Array.from(statusMap.values()).filter(
-      item => typeof item.status === 'number' && item.status >= 400
-    ),
+    brokenLinks: Array.from(brokenLinksMap.values()),
     checkedUrls: Array.from(checkedUrls),
     allStatuses: Array.from(statusMap.values()),
   };

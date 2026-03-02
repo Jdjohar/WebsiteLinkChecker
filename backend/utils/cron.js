@@ -145,9 +145,9 @@ function startCronJobs() {
 
 
   
-  // Daily scans at 10 18 PM IST
-  new CronJob('50 18 * * *', async () => {
-    console.log('🚀 Starting daily scan job at 28 14 PM IST...');
+  // Daily scans at 15 11  PM IST
+  new CronJob('51 16  * * *', async () => {
+    console.log('🚀 Starting daily scan job at 15 11  PM IST...');
     try {
       const users = await User.find({});
       console.log(`👥 Found ${users.length} users.`);
@@ -158,7 +158,7 @@ function startCronJobs() {
 
         // Process domains in batches of 5 with a 1-minute delay between batches
         const batchSize = 5;
-        for (let i = 0; i < domains.length; i += batchSize) {
+        for (let i = 0; i < domains.length; i =+ batchSize) {
           const batch = domains.slice(i, i + batchSize);
           console.log(`🔄 Processing batch ${i / batchSize + 1} of ${Math.ceil(domains.length / batchSize)}`);
 
