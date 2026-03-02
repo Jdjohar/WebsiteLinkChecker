@@ -2,7 +2,8 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const robotsParser = require('robots-parser');
-const pLimit = require('p-limit').default;
+// const pLimit = require('p-limit').default;
+const pLimit = require('p-limit');
 const { URL } = require('url');
 const { XMLParser } = require('fast-xml-parser');
 const puppeteer = require('puppeteer'); // optional for dynamic/challenged pages
