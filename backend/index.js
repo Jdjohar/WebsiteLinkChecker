@@ -16,16 +16,9 @@ const { startCronJobs } = require('./utils/cron');
 
 const app = express();
 
-// ---------- ENVIRONMENT ----------
-const FRONTEND_URL = process.env.FRONTEND_URL?.replace(/\/$/, '');
-const BACKEND_URL = process.env.BACKEND_URL?.replace(/\/$/, '');
-const MONGO_URI = process.env.MONGO_URI;
-const IS_VERCEL = !!process.env.VERCEL;
-
-// Basic validation
-if (!FRONTEND_URL || !MONGO_URI) {
-  console.error('❌ Missing required environment variables.');
-}
+// Normalize FRONTEND_URL to remove trailing slash
+const frontendUrl = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
+console.log("1");
 
 // Log webhook URL
 const webhookUrl = `${BACKEND_URL || 'http://localhost:3001'}/api/stripe/webhook`;
@@ -72,31 +65,28 @@ const limiter = rateLimit({
 app.use(['/api/auth', '/api/reports/scan'], limiter);
 console.log('✅ Rate limiting enabled');
 
-// ---------- DATABASE CONNECTION ----------
-let isConnected = false;
+// MongoDB Connection
+let cached = global.mongoose;
 
-async function connectDB() {
-  if (isConnected) {
-    console.log('⚡ Using cached MongoDB connection');
-    return;
-  }
-
-  try {
-    const db = await mongoose.connect(MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000,
-    });
-    isConnected = db.connections[0].readyState;
-    console.log('✅ MongoDB connected');
-  } catch (err) {
-    console.error('❌ MongoDB connection error:', err.message);
-  }
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
 }
 
-connectDB();
+async function connectDB() {
+  if (cached.conn) return cached.conn;
 
-// ---------- ROUTES ----------
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(process.env.MONGO_URI);
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
+}
+
+connectDB()
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error(err));
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/domains', domainRoutes);
 app.use('/api/reports', reportRoutes);
@@ -105,23 +95,17 @@ console.log('✅ API routes mounted');
 
 // ---------- HEALTH CHECK ----------
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK', message: 'Server running' });
+  res.status(200).json({ status: 'OK' });
 });
 
-// ---------- ERROR HANDLER ----------
+// Error handler
 app.use((err, req, res, next) => {
-  console.error('🔥 Error middleware:', err.stack || err);
+  console.error(err);
   res.status(500).json({ message: 'Internal server error' });
 });
 
-// ---------- CRON JOBS ----------
-if (!IS_VERCEL) {
-  // Vercel functions are ephemeral; cron jobs won't persist
-  startCronJobs();
-  console.log('✅ Cron jobs started (local only)');
-} else {
-  console.log('⚠️ Skipping cron jobs on Vercel (use Vercel Cron instead)');
-}
+
+console.log('Console log print');
 
 // ---------- SERVER START (LOCAL ONLY) ----------
 if (!IS_VERCEL) {
@@ -133,5 +117,14 @@ if (!IS_VERCEL) {
   console.log('✅ Exporting Express app for Vercel');
 }
 
-// ---------- EXPORT FOR VERCEL ----------
+// Start Cron Jobs
+startCronJobs();
+
+console.log('Console log print 2');
+
+// Start Server
+const port = process.env.PORT || 3001;
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
 module.exports = app;

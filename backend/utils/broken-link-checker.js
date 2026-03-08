@@ -85,24 +85,66 @@ function delay(ms) {
 }
 
 // Check single link
+// async function checkLink(linkUrl, sourceUrl, brokenLinks, checkedUrls) {
+//   if (checkedUrls.has(linkUrl) || !isValidUrl(linkUrl)) {
+//     if (!isValidUrl(linkUrl)) {
+//       brokenLinks.push({ url: linkUrl, status: 'Invalid URL', source: sourceUrl });
+//     }
+//     return;
+//   }
+//   checkedUrls.add(linkUrl);
+//   try {
+//     const response = await axios.get(linkUrl, { timeout: 5000 });
+//     if (response.status < 200 || response.status >= 400) {
+//       brokenLinks.push({ url: linkUrl, status: response.status, text:brokenLinks.text,  source: sourceUrl });
+//     }
+//   } catch (error) {
+//     const status = error.response ? error.response.status : 'Unreachable';
+//     brokenLinks.push({ url: linkUrl, status, source: sourceUrl });
+//   }
+// }
+
 async function checkLink(linkUrl, sourceUrl, brokenLinks, checkedUrls) {
+  // Skip already checked or invalid URLs
   if (checkedUrls.has(linkUrl) || !isValidUrl(linkUrl)) {
     if (!isValidUrl(linkUrl)) {
       brokenLinks.push({ url: linkUrl, status: 'Invalid URL', source: sourceUrl });
     }
     return;
   }
+
+  // ✅ Whitelist patterns (URLs that should always be skipped)
+  const whitelistPatterns = [
+    /\?p=\d+/,       // WordPress shortlinks (?p=123)
+    /\/feed$/,       // RSS feeds
+    /\/wp-json\//,   // WordPress REST API
+    /\/xmlrpc\.php/  // XML-RPC endpoints
+  ];
+
+  if (whitelistPatterns.some(pattern => pattern.test(linkUrl))) {
+    console.log(`Skipping whitelisted URL: ${linkUrl}`);
+    return;
+  }
+
   checkedUrls.add(linkUrl);
+
   try {
-    const response = await axios.get(linkUrl, { timeout: 5000 });
+    const response = await axios.get(linkUrl, { timeout: 5000, maxRedirects: 5 });
     if (response.status < 200 || response.status >= 400) {
-      brokenLinks.push({ url: linkUrl, status: response.status, text:brokenLinks.text,  source: sourceUrl });
+      brokenLinks.push({
+        url: linkUrl,
+        status: response.status,
+        text: 'No text available',
+        source: sourceUrl
+      });
     }
   } catch (error) {
     const status = error.response ? error.response.status : 'Unreachable';
     brokenLinks.push({ url: linkUrl, status, source: sourceUrl });
   }
 }
+
+
 
 // Fetch URLs from sitemap
 async function fetchSitemap(sitemapUrl) {
