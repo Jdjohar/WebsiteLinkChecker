@@ -11,7 +11,7 @@ const authRoutes = require('./routes/auth');
 const domainRoutes = require('./routes/domains');
 const reportRoutes = require('./routes/reports');
 const stripeRoutes = require('./routes/stripe');
-// const { startCronJobs } = require('./utils/cron');
+const { startCronJobs } = require('./utils/cron');
 
 const app = express();
 
@@ -121,13 +121,13 @@ console.log('Console log print');
 
 
 // Start Cron Jobs
-// startCronJobs();
+startCronJobs();
 
 console.log('Console log print 2');
 
 // Start Server
-// const port = process.env.PORT || 3001;
-// app.listen(port, () => {
-//   console.log(`Server running on port ${port}`);
-// });
+const port = process.env.PORT || 3001;
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
 module.exports = app;
