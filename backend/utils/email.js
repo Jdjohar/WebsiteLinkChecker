@@ -1,7 +1,6 @@
 const User = require('../models/User');
 
 async function sendEmail(report, websiteUrl, userId) {
-
   console.log("userId:", userId);
   console.log("websiteUrl:", websiteUrl);
 
@@ -11,46 +10,43 @@ async function sendEmail(report, websiteUrl, userId) {
     throw new Error("User not found");
   }
 
-  const recipientList = [user.email, ...(user.extraEmails || [])];
+  // Combine main email + extra emails
+  const recipients = [user.email, ...(user.extraEmails || [])];
 
-  try {
+  console.log("Recipients:", recipients);
 
-    const response = await fetch(process.env.EMAIL_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        smtpHost: process.env.SMTP_HOST,
-        smtpPort: process.env.SMTP_PORT,
-        smtpUser: process.env.SMTP_USER,
-        smtpPass: process.env.SMTP_PASS,
-        from: process.env.SMTP_USER,
-        to: user.email,
-        bcc: user.extraEmails || [],
-        subject: `Broken Links Report for ${websiteUrl}`,
-        text: report.text,
-        html: report.html
-      })
-    });
+  for (const email of recipients) {
+    try {
+      const response = await fetch(process.env.EMAIL_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          smtpHost: process.env.SMTP_HOST,
+          smtpPort: process.env.SMTP_PORT,
+          smtpUser: process.env.SMTP_USER,
+          smtpPass: process.env.SMTP_PASS,
+          from: process.env.SMTP_USER,
+          to: email,
+          subject: `Broken Links Report for ${websiteUrl}`,
+          text: report.text,
+          html: report.html
+        })
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.message || "Email API failed");
+      if (!response.ok) {
+        console.error(`❌ Failed sending to ${email}:`, data);
+        continue;
+      }
+
+      console.log(`📬 Email sent to: ${email}`);
+
+    } catch (error) {
+      console.error(`❌ Error sending email to ${email}:`, error.message);
     }
-
-    console.log("📬 Email API response:", data);
-    console.log(`Email sent to: ${recipientList.join(", ")}`);
-
-  } catch (error) {
-
-    console.error(
-      `❌ Error sending email for ${websiteUrl}:`,
-      error.message
-    );
-
-    throw new Error(`Failed to send email for ${websiteUrl}`);
   }
 }
 
