@@ -243,6 +243,7 @@ function startCronJobs() {
 
   // Keep-alive ping every 14 minutes
   new CronJob('*/14 * * * *', async () => {
+    console.log("Keep Alive Cron")
     try {
       const healthUrl = `${process.env.BACKEND_URL}/health`;
       await axios.get(healthUrl);
