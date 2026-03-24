@@ -47,14 +47,14 @@ const runDomainScan = async (domainId, userId) => {
       blogPageUrl: `${domain.url}blogs/`,
     });
     console.log(report, "report:");
-    
+
     console.log(`✅ Scan completed for ${domain.url}: ${report.checkedUrls.length} URLs checked, ${report.brokenLinks.length} broken links found`);
   } catch (error) {
     console.error(`❌ scanLinks failed for ${domain.url}: ${error.message}`);
     throw error;
   }
   console.log("✅✅✅✅✅✅ report.brokenLinks: ", report.brokenLinks);
-  
+
   const fixedBrokenLinks = report.brokenLinks.map(link => ({
     ...link,
     text: link.text || 'No text available',
@@ -72,10 +72,10 @@ const runDomainScan = async (domainId, userId) => {
   console.log(`💾 Report saved: reportId=${newReport._id}`);
 
   // 6. Always send email
-console.log(`📧 Preparing email for ${user.email}`);
+  console.log(`📧 Preparing email for ${user.email}`);
 
-const emailSubject = `Link Scan Completed for ${domain.url}`;
-const emailBody = `
+  const emailSubject = `Link Scan Completed for ${domain.url}`;
+  const emailBody = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -105,11 +105,10 @@ const emailBody = `
         <li><strong>Broken Links:</strong> ${report.brokenLinks.length}</li>
         <li><strong>Total URLs Checked:</strong> ${report.checkedUrls.length}</li>
       </ul>
-      ${
-        report.brokenLinks.length > 0
-          ? `<p>Please review the broken links in your <a href="${process.env.DASHBOARD_URL}">dashboard</a>.</p>`
-          : `<p>Good news — no broken links were found!</p>`
-      }
+      ${report.brokenLinks.length > 0
+      ? `<p>Please review the broken links in your <a href="${process.env.DASHBOARD_URL}">dashboard</a>.</p>`
+      : `<p>Good news — no broken links were found!</p>`
+    }
       <p>Thank you for using our service!</p>
     </div>
     <div class="footer">
@@ -120,17 +119,17 @@ const emailBody = `
 </html>
 `;
 
-const emailData = {
-  ...newReport.toObject(),
-  html: emailBody,
-  text: "Link scan completed",
-};
+  const emailData = {
+    ...newReport.toObject(),
+    html: emailBody,
+    text: "Link scan completed",
+  };
 
-console.log(`📧 Sending email to ${user.email}`);
+  console.log(`📧 Sending email to ${user.email}`);
 
-// 7. Send email
-await sendEmail(emailData, domain._id, userId);
-console.log(`📬 Email sent to ${user.email}`);  
+  // 7. Send email
+  await sendEmail(emailData, domain._id, userId);
+  console.log(`📬 Email sent to ${user.email}`);
 
   // 8. Return success data
   return {
@@ -143,9 +142,9 @@ function startCronJobs() {
   console.log("🟢 Starting cron jobs...");
 
 
-  
+
   // Daily scans at 10 18 PM IST
-  new CronJob('15 15 * * *', async () => {
+  new CronJob('09 12 * * *', async () => {
     console.log('🚀 Starting daily scan job at 10 18 PM IST...');
     try {
       const users = await User.find({});

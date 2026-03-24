@@ -444,12 +444,6 @@ async function scanLinks(startUrl, schedule = 'daily', opts = {}) {
           // ✅ Record successful fetch before parsing
           statusMap.set(url, { url, status, source, text: '', type: 'internal' });
 
-          // Proactive discovery with a real browser (for JS-rendered nav)
-          try {
-            const plinks = await fetchPageLinksWithPuppeteer(url, base);
-            for (const pl of plinks) enqueue(pl, url, depth + 1);
-          } catch {}
-
           // Parse links
           let $;
           try {
