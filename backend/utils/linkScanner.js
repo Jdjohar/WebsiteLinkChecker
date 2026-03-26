@@ -208,7 +208,7 @@ async function fetchBlogLinksWithPuppeteer(blogUrl, base) {
   let browser;
   try {
     browser = await puppeteer.launch({
-      headless: 'shell', // set to false to debug locally
+      headless: true, // Stealth requires full Chrome, not 'shell'
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -251,7 +251,7 @@ async function fetchPageLinksWithPuppeteer(url, base) {
   let browser;
   try {
     browser = await puppeteer.launch({
-      headless: 'shell',
+      headless: true, // Stealth requires full Chrome, not 'shell'
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
