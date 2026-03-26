@@ -5,7 +5,9 @@ const robotsParser = require('robots-parser');
 const pLimit = require('p-limit').default;
 const { URL } = require('url');
 const { XMLParser } = require('fast-xml-parser');
-const puppeteer = require('puppeteer'); // optional for dynamic/challenged pages
+const puppeteer = require('puppeteer-extra'); // Replacement for standard puppeteer
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
 const fs = require('fs').promises;
 
 const limit = pLimit(18);
@@ -21,7 +23,7 @@ const IGNORE_ROBOTS = true;
 const axiosInstance = axios.create({
   headers: {
     'User-Agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 WebsiteLinkChecker-Valid-Bot',
     'Accept':
       'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
@@ -220,7 +222,7 @@ async function fetchBlogLinksWithPuppeteer(blogUrl, base) {
     const page = await browser.newPage();
     await page.setExtraHTTPHeaders({ 'accept-language': 'en-US,en;q=0.9' });
     await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 WebsiteLinkChecker-Valid-Bot'
     );
 
     await page.goto(blogUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -262,7 +264,7 @@ async function fetchPageLinksWithPuppeteer(url, base) {
     const page = await browser.newPage();
     await page.setExtraHTTPHeaders({ 'accept-language': 'en-US,en;q=0.9' });
     await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 WebsiteLinkChecker-Valid-Bot'
     );
     // let the JS challenge complete
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
