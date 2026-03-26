@@ -236,7 +236,8 @@ async function fetchBlogLinksWithPuppeteer(blogUrl, base) {
       .filter((abs) => /^https?:/i.test(abs) && abs.startsWith(base));
 
     return [...new Set(cleaned)];
-  } catch {
+  } catch (error) {
+    console.error(`❌ Puppeteer error for blog ${blogUrl}:`, error.message);
     return [];
   } finally {
     if (browser) await browser.close();
@@ -274,7 +275,8 @@ async function fetchPageLinksWithPuppeteer(url, base) {
       .map(href => new URL(href, url).href)
       .filter(abs => /^https?:/i.test(abs) && abs.startsWith(base));
     return [...new Set(cleaned)];
-  } catch {
+  } catch (error) {
+    console.error(`❌ Puppeteer fallback error for ${url}:`, error.message);
     return [];
   } finally {
     if (browser) await browser.close();
