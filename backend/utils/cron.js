@@ -130,7 +130,7 @@ const emailData = {
 console.log(`📧 Sending email to ${user.email}`);
 
 // 7. Send email
-await sendEmail(emailData, domain._id, userId);
+await sendEmail(emailData, domain.url, userId);
 console.log(`📬 Email sent to ${user.email}`);  
 
   // 8. Return success data
@@ -146,7 +146,7 @@ function startCronJobs() {
 
   
   // Daily scans at 11 15  PM IST
-  new CronJob('15 23  * * *', async () => {
+  new CronJob('21 13  * * *', async () => {
     console.log('🚀 Starting daily scan job at 15 11  PM IST...');
     try {
       const users = await User.find({});
@@ -158,7 +158,7 @@ function startCronJobs() {
 
         // Process domains in batches of 5 with a 1-minute delay between batches
         const batchSize = 5;
-        for (let i = 0; i < domains.length; i =+ batchSize) {
+for (let i = 0; i < domains.length; i += batchSize) {
           const batch = domains.slice(i, i + batchSize);
           console.log(`🔄 Processing batch ${i / batchSize + 1} of ${Math.ceil(domains.length / batchSize)}`);
 

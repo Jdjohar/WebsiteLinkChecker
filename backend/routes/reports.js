@@ -121,7 +121,7 @@ const { log } = require('winston');
    console.log(`📧 Preparing email for ${user.email}`);
  
    // 7. Send email
-   await sendEmail(emailData, domain._id, userId);
+   await sendEmail(emailData, domain.url, userId);
    console.log(`📬 Email sent to ${user.email}`);
  
    // 8. Return success data
@@ -130,7 +130,43 @@ const { log } = require('winston');
      reportId: newReport._id,
    };
  };
+
 router.post('/scan/:domainId', authMiddleware, async (req, res) => {
+  try {
+    // 1. Verify domain belongs to user
+    const domain = await Domain.findOne({
+      _id: req.params.domainId,
+      userId: req.user.userId,
+    });
+
+    if (!domain) {
+      return res.status(404).json({ message: 'Domain not found or not authorized' });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    console.log(`🔍 Scanning ${domain.url} for user ${user.email}`);
+    const scanResult = await runDomainScan(domain._id, user._id);
+    console.log(`✅ Completed scan for ${domain.url}`);
+
+    res.status(200).json({
+      message: 'Scan completed',
+      reportId: scanResult.reportId,
+    });
+
+  } catch (error) {
+    console.error('Scan error:', error);
+    res.status(500).json({
+      message: 'Failed to start scan',
+      error: error.message,
+    });
+  }
+});
+
+router.post('/daily-scan', async (req, res) => {
 
   try {
       const users = await User.find({});
@@ -165,122 +201,12 @@ router.post('/scan/:domainId', authMiddleware, async (req, res) => {
       }
   
       console.log('🎉 Daily scans completed for all users.');
+      res.status(200).json({ message: 'Daily scans completed successfully' });
     } catch (error) {
       console.error('🛑 Daily scan error:', error.message);
+      res.status(500).json({ message: 'Daily scan failed', error: error.message });
     }
-
-
 });
-// router.post('/scan/:domainId', authMiddleware, async (req, res) => {
-//   try {
-//     // 1. Verify domain belongs to user
-//      const domain = await Domain.findOne({
-//       _id: req.params.domainId,
-//       userId: req.user.userId,
-//     });
-
-//     if (!domain) {
-//       return res.status(404).json({ message: 'Domain not found or not authorized' });
-//     }
-
-//     const user = await User.findById(req.user.userId);
-//     if (!user) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
-
-//     // const report = await scanLinks(domain.url, domain.schedule, {
-//     //   maxDepth: user.plan === 'advanced' ? Infinity : 5,
-//     //   blogPageUrl: `${domain.url}/blogs/`,
-//     // });
-//  console.log(`🔍 Scanning ${domain.url} for user ${user.email}`);
-//     await runDomainScan(domain._id, user._id);
-//  console.log(`✅ Completed scan for ${domain.url}`);
-//     // 3. Save the report
-//     // const newReport = new Report({
-//     //   domainId: domain._id,
-//     //   brokenLinks: report.brokenLinks,
-//     //   userId: req.user.userId,
-//     //   checkedUrls: report.checkedUrls,
-//     //   allStatuses: report.allStatuses,
-//     // });
-
-//     // await newReport.save();
-    
-
- 
-
-//     // 5. Prepare and send the email
-//     // const emailSubject = `Link Scan Completed for ${domain.url}`;
-// //     const emailBody = `
-// //   <!DOCTYPE html>
-// //   <html lang="en">
-// //   <head>
-// //     <meta charset="UTF-8">
-// //     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-// //     <style>
-// //       body { font-family: Arial, sans-serif; color: #333; background-color: #f4f4f4; margin: 0; padding: 20px; }
-// //       .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-// //       .header { background: #003087; color: #fff; padding: 20px; text-align: center; border-top-left-radius: 8px; border-top-right-radius: 8px; }
-// //       .header h1 { margin: 0; font-size: 24px; }
-// //       .content { padding: 20px; }
-// //       h2 { color: #003087; font-size: 20px; margin-top: 0; }
-// //       p { line-height: 1.6; }
-// //       .footer { text-align: center; padding: 20px; border-top: 1px solid #ddd; font-size: 14px; color: #777; }
-// //       .footer a { color: #003087; text-decoration: none; }
-// //     </style>
-// //   </head>
-// //   <body>
-// //     <div class="container">
-// //       <div class="header">
-// //         <h1>Link Scan Report for ${domain.url}</h1>
-// //       </div>
-// //       <div class="content">
-// //         <h2>Hello ${user.email},</h2>
-// //         <p>The link scan for your domain <strong>${domain.url}</strong> has been completed. Here are the results:</p>
-// //         <ul>
-// //           <li><strong>Broken Links:</strong> ${report.brokenLinks.length}</li>
-// //           <li><strong>Total URLs Checked:</strong> ${report.checkedUrls.length}</li>
-// //         </ul>
-// //         <p>You can view more details in your <a href="${process.env.FRONTEND_URL}">dashboard</a>.</p>
-// //         <p>Thank you for using our service!</p>
-// //       </div>
-// //       <div class="footer">
-// //         <p>Generated by Website Link Checker | <a href="${process.env.FRONTEND_URL}">Visit Us</a></p>
-// //       </div>
-// //     </div>
-// //   </body>
-// //   </html>
-// // `;
-
-
-// // const emailData = {
-// //       ...newReport.toObject(),
-// //       html: emailBody,
-// //       text: "Testing text"
-// //     };
-
-// // console.log(emailData,"emailData");
-
-// //     await sendEmail(emailData, domain._id,req.user.userId);
-// //  res.status(200).json({ 
-// //       message: 'Scan completed', 
-// //       reportId: newReport._id,
-// //       stats: {
-// //         totalChecked: report.checkedUrls.length,
-// //         brokenLinks: report.brokenLinks.length,
-// //         statuses: report.allStatuses,
-// //       },
-// //     });
-
-//   } catch (error) {
-//     console.error('Scan error:', error);
-//     res.status(500).json({
-//       message: 'Failed to start scan',
-//       error: error.message,
-//     });
-//   }
-// });
-
 
 // List Reports
 router.get('/', authMiddleware, async (req, res) => {
