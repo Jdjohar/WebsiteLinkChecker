@@ -1,3 +1,4 @@
+// index.js
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
@@ -20,62 +21,49 @@ const frontendUrl = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
 console.log("1");
 
 // Log webhook URL
-const webhookUrl = `${process.env.BACKEND_URL}/api/stripe/webhook`;
-console.log(`Webhook URL: ${webhookUrl}`);
+const webhookUrl = `${BACKEND_URL || 'http://localhost:3001'}/api/stripe/webhook`;
+console.log(`📡 Webhook URL: ${webhookUrl}`);
 
-// Debug middleware to log body type for all requests
-app.use((req, res, next) => {
-  console.log(`Middleware - Request to ${req.path}, body type:`, typeof req.body, req.body instanceof Buffer);
-  next();
-});
-console.log("2");
-// CORS Configuration
-app.use(cors({
-  origin: frontendUrl,
-  methods: ['GET', 'POST', 'DELETE'],
+// ---------- CORS ----------
+const corsOptions = {
+  origin: FRONTEND_URL,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
-console.log('Middleware - Applied CORS');
+  credentials: true,
+};
 
-// Handle preflight OPTIONS requests
-app.options('*', cors({
-  origin: frontendUrl,
-  methods: ['GET', 'POST', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
-console.log('Middleware - Applied CORS OPTIONS');
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+console.log('✅ CORS configured');
 
-// Security Middleware
+// ---------- SECURITY ----------
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      connectSrc: ["'self'", frontendUrl, process.env.BACKEND_URL],
+      connectSrc: ["'self'", FRONTEND_URL, BACKEND_URL],
     },
   },
 }));
-console.log('Middleware - Applied Helmet');
+console.log('✅ Helmet configured');
 
-// Webhook route (must come before express.json to avoid parsing raw body)
+// ---------- STRIPE WEBHOOK (raw body) ----------
 app.use('/api/stripe/webhook', stripeRoutes);
-console.log('Middleware - Mounted /api/stripe/webhook');
+console.log('✅ Stripe webhook route mounted');
 
-// JSON parsing for other routes
+// ---------- JSON PARSING ----------
 app.use(express.json());
-console.log('Middleware - Applied express.json');
+console.log('✅ express.json middleware enabled');
 
-// Rate Limiting
+// ---------- RATE LIMITING ----------
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per window
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 100,
 });
-app.use('/api/auth', limiter);
-app.use('/api/reports/scan', limiter);
-console.log('Middleware - Applied rate limiting');
+app.use(['/api/auth', '/api/reports/scan'], limiter);
+console.log('✅ Rate limiting enabled');
 
 // MongoDB Connection
 let cached = global.mongoose;
@@ -103,9 +91,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/domains', domainRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/stripe', stripeRoutes);
-console.log('Middleware - Mounted API routes');
+console.log('✅ API routes mounted');
 
-// Health Check
+// ---------- HEALTH CHECK ----------
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK' });
 });
@@ -119,6 +107,15 @@ app.use((err, req, res, next) => {
 
 console.log('Console log print');
 
+// ---------- SERVER START (LOCAL ONLY) ----------
+if (!IS_VERCEL) {
+  const port = process.env.PORT || 3001;
+  app.listen(port, () => {
+    console.log(`🚀 Server running locally on port ${port}`);
+  });
+} else {
+  console.log('✅ Exporting Express app for Vercel');
+}
 
 // Start Cron Jobs
 startCronJobs();

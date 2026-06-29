@@ -33,8 +33,51 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
       {reports.length === 0 ? (
         <p className="p-4">No reports available.</p>
       ) : (
+<<<<<<< HEAD
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border p-2">Date</th>
+              <th className="border p-2">Domain</th>
+              <th className="border p-2">Broken Links</th>
+              <th className="border p-2">URLs Checked</th>
+              <th className="border p-2">Details</th>
+            </tr>
+          </thead>
+          <tbody>
+           
+
+            {reports.map((report) => (
+              
+              <React.Fragment key={report._id}>
+                <tr>
+                  <td className="border p-2 ds">{new Date(report.createdAt).toLocaleString()}</td>
+                  <td className="border p-2">{getDomainUrl(report.domainId)}</td>
+                  <td className="border p-2">{report.brokenLinks.length}</td>
+                  <td className="border p-2">{report.checkedUrls.length}</td>
+                  <td className="border p-2">
+                    <button
+                      onClick={() => setExpandedReport(expandedReport === report._id ? null : report._id)}
+                      className="mt-4 w-full bg-primary text-white p-2 rounded"
+                    >
+                      {expandedReport === report._id ? 'Hide' : 'Show'} Details
+                    </button>
+                  </td>
+                </tr>
+              {expandedReport === report._id && (
+  <tr>
+    <td colSpan={5} className="border p-4 bg-gray-50">
+      {/* Broken Links Section */}
+      <div className="mb-4">
+        <h3 className="font-bold mb-2 text-lg">Broken Links</h3>
+        {report.brokenLinks.length === 0 ? (
+          <p>No broken links found.</p>
+        ) : (
+          <table className="w-full border-collapse mb-4">
+=======
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
+>>>>>>> 78a13c7d58cf4823248334d5814d2c3a8d9298d9
             <thead>
               <tr className="bg-gray-100 text-left">
                 <th className="border p-2">Date</th>
@@ -44,7 +87,40 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
                 <th className="border p-2">Details</th>
               </tr>
             </thead>
+             {/* {console.log(typeof report.brokenLinks[9].status,'report.brokenLinks')} */}
             <tbody>
+<<<<<<< HEAD
+              {report.brokenLinks
+              .filter(link => link.status === "404" )
+  .map((link, index) => (
+    <tr key={index}>
+      <td style={{ maxWidth: '200px' }} className="border p-2">
+        <a
+          href={link.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary"
+        >
+          {link.url}
+        </a>
+      </td>
+      <td className="border p-2">{link.status}</td>
+      <td style={{ maxWidth: '200px' }} className="border p-2">
+        {link.text}
+      </td>
+      <td style={{ maxWidth: '200px' }} className="border p-2">
+        <a
+          href={link.source}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary"
+        >
+          {link.source}
+        </a>
+      </td>
+    </tr>
+  ))}
+=======
               {reports.map((report) => (
                 <React.Fragment key={report._id}>
                   <tr>
@@ -150,6 +226,7 @@ export default function ReportTable({ reports, domains }: ReportTableProps) {
                   )}
                 </React.Fragment>
               ))}
+>>>>>>> 78a13c7d58cf4823248334d5814d2c3a8d9298d9
             </tbody>
           </table>
         </div>
