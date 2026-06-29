@@ -88,4 +88,3 @@ async function sendEmail(report, websiteUrl, userId) {
 }
 
 module.exports = { sendEmail };
-

@@ -146,7 +146,7 @@ function startCronJobs() {
 
   
   // Daily scans at 11 15  PM IST
-  new CronJob('21 13  * * *', async () => {
+  new CronJob('45 16  * * *', async () => {
     console.log('🚀 Starting daily scan job at 15 11  PM IST...');
     try {
       const users = await User.find({});
